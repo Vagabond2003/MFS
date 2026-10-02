@@ -1,26 +1,186 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Design tokens
+ * - brand-*: the Kosh brand ramp (emerald/teal), used on public pages.
+ * - accent-*: a per-role accent. Each role shell sets the --accent-* variables,
+ *   so the same components pick up the Personal / Agent / Merchant / Admin accent
+ *   while keeping one brand identity.
+ * - chart-*: validated categorical data palette (see components/charts/theme.ts).
+ */
+@theme {
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-brand-50: #eefbf6;
+  --color-brand-100: #d5f5e8;
+  --color-brand-200: #ade9d3;
+  --color-brand-300: #76d7b8;
+  --color-brand-400: #3dbd97;
+  --color-brand-500: #19a07c;
+  --color-brand-600: #0d8065;
+  --color-brand-700: #0c6653;
+  --color-brand-800: #0d5244;
+  --color-brand-900: #0c4339;
+  --color-brand-950: #052620;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --color-canvas: #f4f6f8;
+
+  --color-chart-1: #2a78d6;
+  --color-chart-2: #eb6834;
+  --color-chart-3: #1baf7a;
+  --color-chart-4: #eda100;
+
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.05);
+  --shadow-float: 0 18px 40px -18px rgb(15 23 42 / 0.35);
+
+  --animate-fade-in: fade-in 160ms ease-out;
+  --animate-scale-in: scale-in 160ms ease-out;
+  --animate-slide-up: slide-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-slide-in-right: slide-in-right 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-pop: pop 420ms cubic-bezier(0.2, 0.9, 0.3, 1.3);
+  --animate-scan: scan 1.8s ease-in-out infinite alternate;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.97) translateY(4px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(24px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes scan {
+    from { top: 16px; }
+    to { top: calc(100% - 18px); }
+  }
+  @keyframes pop {
+    0% { opacity: 0; transform: scale(0.6); }
+    100% { opacity: 1; transform: scale(1); }
   }
 }
 
+@theme inline {
+  --color-accent-50: var(--accent-50);
+  --color-accent-100: var(--accent-100);
+  --color-accent-200: var(--accent-200);
+  --color-accent-500: var(--accent-500);
+  --color-accent-600: var(--accent-600);
+  --color-accent-700: var(--accent-700);
+  --color-accent-fg: var(--accent-fg);
+}
+
+:root {
+  --accent-50: #eefbf6;
+  --accent-100: #d5f5e8;
+  --accent-200: #ade9d3;
+  --accent-500: #19a07c;
+  --accent-600: #0d8065;
+  --accent-700: #0c6653;
+  --accent-fg: #ffffff;
+}
+
+/* Role accents — applied by each role shell */
+.theme-personal {
+  --accent-50: #eefbf6;
+  --accent-100: #d5f5e8;
+  --accent-200: #ade9d3;
+  --accent-500: #19a07c;
+  --accent-600: #0d8065;
+  --accent-700: #0c6653;
+  --accent-fg: #ffffff;
+}
+.theme-agent {
+  --accent-50: #fffbeb;
+  --accent-100: #fef3c7;
+  --accent-200: #fde68a;
+  --accent-500: #fbbf24;
+  --accent-600: #f59e0b;
+  --accent-700: #b45309;
+  --accent-fg: #1c1917;
+}
+.theme-merchant {
+  --accent-50: #eef2ff;
+  --accent-100: #e0e7ff;
+  --accent-200: #c7d2fe;
+  --accent-500: #6366f1;
+  --accent-600: #4f46e5;
+  --accent-700: #4338ca;
+  --accent-fg: #ffffff;
+}
+.theme-admin {
+  --accent-50: #f0f9ff;
+  --accent-100: #e0f2fe;
+  --accent-200: #bae6fd;
+  --accent-500: #0ea5e9;
+  --accent-600: #0284c7;
+  --accent-700: #0369a1;
+  --accent-fg: #ffffff;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-slate-900);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Amounts in columns align; standalone hero figures keep proportional digits. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 2px;
+}
+
+/* Thin, unobtrusive scrollbars for inner scroll areas */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 0.5) transparent;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Recharts: no focus ring box around the whole SVG on click */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  /* When a page marks a print area (QR card, receipt), print only that. */
+  body:has(.print-area) * {
+    visibility: hidden;
+  }
+  body:has(.print-area) .print-area,
+  body:has(.print-area) .print-area * {
+    visibility: visible;
+  }
+  body:has(.print-area) .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    box-shadow: none;
+  }
 }
