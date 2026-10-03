@@ -647,18 +647,20 @@ function generate(base) {
         schedule(ms, () => {
           const walkIns = customersIn(m.district);
           const pool = chance(0.62) || !walkIns.length ? m.regulars : walkIns;
+          // The customer pays the 1.5% fee on top; the merchant receives the full amount.
+          const fees = computeFees("MERCHANT_PAYMENT", amount);
+          const gross = amount + fees.senderFee;
           // Whoever is at the counter: prefer someone who can pay; otherwise they top up first.
           let c = pick(pool);
-          for (let tries = 0; tries < 4 && !canAfford(c.user.id, amount); tries++) c = pick(pool);
-          if (!withinLimits(c, amount, day) || !ensureFunds(c, amount, ms)) return;
-          const fees = computeFees("MERCHANT_PAYMENT", amount);
+          for (let tries = 0; tries < 4 && !canAfford(c.user.id, gross); tries++) c = pick(pool);
+          if (!withinLimits(c, gross, day) || !ensureFunds(c, gross, ms)) return;
           const qr = chance(m.qrShare);
           const p = {
-            type: "MERCHANT_PAYMENT", sender: c.party, receiver: m.party, amount, receiverFee: fees.receiverFee,
+            type: "MERCHANT_PAYMENT", sender: c.party, receiver: m.party, amount, senderFee: fees.senderFee, receiverFee: fees.receiverFee,
             paymentMethod: qr ? "QR_SCAN" : "MERCHANT_ID", description: `Payment to ${m.party.name}`, reference: null,
           };
           if (chance(m.failRate)) return fail(p, ms, "Customer cancelled at the counter");
-          recordOutflow(c, amount, day);
+          recordOutflow(c, gross, day);
           const t = post(p, ms);
           if (chance(0.012)) {
             const later = ms + int(1, 7) * DAY_MS + int(0, 6) * 3_600_000;
