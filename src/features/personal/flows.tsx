@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,7 +18,7 @@ import { api } from "@/services";
 import { toApiError } from "@/services/errors";
 import { cn, formatDate, formatMoney, toMinor } from "@/lib/utils";
 import { phoneSchema, takaAmountSchema } from "@/lib/validation";
-import type { BillDetails, Biller, ConnectionType, Operator } from "@/types/domain";
+import type { BillDetails, Biller, ConnectionType, FundingSource, Operator } from "@/types/domain";
 import { DemoHint, InfoCard, QuickAmounts } from "../shared/flow-aside";
 
 const DONE = "/dashboard/personal";
@@ -84,7 +85,7 @@ export function SendMoneyView() {
           <>
             <InfoCard title="Fees & limits" items={[{ label: "Up to ৳1,000", value: "Free" }, { label: "Above ৳1,000", value: "৳5 per transfer" }, { label: "One-time code", value: "From ৳10,000" }]} />
             <DemoHint>
-              <p>Send to <b>01710000002</b> (Tanvir) or <b>01710000003</b> (Farhana).</p>
+              <p>Register a second personal account, then send to its number.</p>
               <p>An unregistered number is rejected by the server.</p>
             </DemoHint>
           </>
@@ -131,8 +132,8 @@ export function CashOutView() {
           <>
             <InfoCard title="Cash Out charge" items={[{ label: "Charge", value: "1.85%" }, { label: "Minimum", value: "৳50" }, { label: "Per transaction", value: "Up to ৳25,000" }]} />
             <DemoHint>
-              <p><b>01810000001</b> — verified agent (works).</p>
-              <p><b>01810000002</b> — under review, so the server refuses it.</p>
+              <p><b>01814557644</b> — Sabbir_Tele, verified agent.</p>
+              <p>A newly registered agent is refused until an admin verifies it.</p>
             </DemoHint>
           </>
         }
@@ -430,11 +431,11 @@ function MerchantPayForm({ submit, busy }: FlowFormContext) {
       />
       {mode === "id" ? (
         <Field label="Merchant ID" required>
-          {(p) => <Input {...p} value={input} onChange={(e) => { setInput(e.target.value.toUpperCase()); setMerchant(null); }} placeholder="MR-40021" />}
+          {(p) => <Input {...p} value={input} onChange={(e) => { setInput(e.target.value.toUpperCase()); setMerchant(null); }} placeholder="MR-40001" />}
         </Field>
       ) : (
         <Field label="QR code content" required hint="Camera scanning runs in the mobile app. Here, paste the text encoded in the merchant's QR.">
-          {(p) => <Textarea {...p} rows={2} value={input} onChange={(e) => { setInput(e.target.value); setMerchant(null); }} placeholder="KOSH1|S|MR-40021|Spice Garden Restaurant" className="font-mono text-sm" />}
+          {(p) => <Textarea {...p} rows={2} value={input} onChange={(e) => { setInput(e.target.value); setMerchant(null); }} placeholder="KOSH1|S|MR-40001|Nafiztong" className="font-mono text-sm" />}
         </Field>
       )}
       {!merchant && (
@@ -484,8 +485,8 @@ export function MerchantPayView() {
           <>
             <InfoCard title="Merchant payment" items={[{ label: "Fee for you", value: "Free" }, { label: "Refunds", value: "Issued by the merchant" }]} />
             <DemoHint>
-              <p><b>MR-40021</b> — Spice Garden (verified).</p>
-              <p><b>MR-40022</b> — FreshMart, pending verification: payments are blocked server-side.</p>
+              <p><b>MR-40001</b> — Nafiztong (verified).</p>
+              <p>A newly registered merchant is blocked server-side until an admin verifies it.</p>
             </DemoHint>
           </>
         }
@@ -496,12 +497,56 @@ export function MerchantPayView() {
 
 /* ───────────────────────── Add Money ───────────────────────── */
 
-function AddMoneyForm({ submit, busy }: FlowFormContext) {
+/** Logos (in /public/wallets) for the external wallets offered as Add Money sources. */
+const WALLET_LOGOS: Record<string, string> = {
+  src_mfs_bkash: "/wallets/bkash.svg",
+  src_mfs_nagad: "/wallets/nagad.svg",
+  src_mfs_rocket: "/wallets/rocket.svg",
+  src_mfs_upay: "/wallets/upay.svg",
+};
+
+function SourceOption({ source, selected, onSelect }: { source: FundingSource; selected: boolean; onSelect: () => void }) {
+  const logo = WALLET_LOGOS[source.id];
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={cn(
+        "flex items-center gap-3 rounded-2xl border p-4 text-left transition",
+        selected ? "border-accent-600 bg-accent-50 ring-2 ring-accent-500/20" : "border-slate-200 hover:border-slate-300",
+      )}
+    >
+      {logo ? (
+        <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-100">
+          <Image src={logo} alt="" width={32} height={32} className="h-full w-full object-contain" />
+        </span>
+      ) : (
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-slate-600 shadow-sm">
+          {source.kind === "BANK" ? <Landmark className="h-5 w-5" aria-hidden /> : <CreditCard className="h-5 w-5" aria-hidden />}
+        </span>
+      )}
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-semibold text-slate-900">{source.label}</span>
+        <span className="tabular block truncate text-xs text-slate-500">{source.masked}</span>
+      </span>
+    </button>
+  );
+}
+
+function AddMoneyForm({ submit, busy, ownNumber }: FlowFormContext & { ownNumber: string }) {
   const sources = useApi(() => api.wallet.fundingSources(), []);
   const [chosen, setSourceId] = useState("");
   const sourceId = chosen || sources.data?.[0]?.id || "";
+  const source = sources.data?.find((s) => s.id === sourceId);
+  const isWallet = source?.kind === "MFS";
+  const [walletNumber, setWalletNumber] = useState(ownNumber);
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const wallets = sources.data?.filter((s) => s.kind === "MFS") ?? [];
+  const linked = sources.data?.filter((s) => s.kind !== "MFS") ?? [];
 
   return (
     <form
@@ -509,39 +554,44 @@ function AddMoneyForm({ submit, busy }: FlowFormContext) {
       noValidate
       onSubmit={(e) => {
         e.preventDefault();
+        let wallet: string | undefined;
+        if (isWallet) {
+          const num = phoneSchema.safeParse(walletNumber);
+          if (!num.success) return setError(`${source.label} number: ${num.error.issues[0].message}`);
+          wallet = num.data;
+        }
         const amt = takaAmountSchema(100, 50_000).safeParse(amount);
         if (!amt.success) return setError(amt.error.issues[0].message);
         setError(null);
-        void submit({ kind: "ADD_MONEY", sourceId, amount: toMinor(amt.data) });
+        void submit({ kind: "ADD_MONEY", sourceId, amount: toMinor(amt.data), walletNumber: wallet });
       }}
     >
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-slate-700">From</p>
-        {sources.loading && <Skeleton className="h-16" />}
-        <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Funding source">
-          {sources.data?.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              role="radio"
-              aria-checked={sourceId === s.id}
-              onClick={() => setSourceId(s.id)}
-              className={cn(
-                "flex items-center gap-3 rounded-2xl border p-4 text-left transition",
-                sourceId === s.id ? "border-accent-600 bg-accent-50 ring-2 ring-accent-500/20" : "border-slate-200 hover:border-slate-300",
-              )}
-            >
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-slate-600 shadow-sm">
-                {s.kind === "BANK" ? <Landmark className="h-5 w-5" aria-hidden /> : <CreditCard className="h-5 w-5" aria-hidden />}
-              </span>
-              <span>
-                <span className="block text-sm font-semibold text-slate-900">{s.label}</span>
-                <span className="tabular block text-xs text-slate-500">{s.masked}</span>
-              </span>
-            </button>
-          ))}
+      {sources.loading && <Skeleton className="h-16" />}
+      {wallets.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-slate-700">From a mobile wallet</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Mobile wallet">
+            {wallets.map((s) => (
+              <SourceOption key={s.id} source={s} selected={sourceId === s.id} onSelect={() => setSourceId(s.id)} />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+      {linked.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-slate-700">From a linked bank account or card</p>
+          <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Bank account or card">
+            {linked.map((s) => (
+              <SourceOption key={s.id} source={s} selected={sourceId === s.id} onSelect={() => setSourceId(s.id)} />
+            ))}
+          </div>
+        </div>
+      )}
+      {isWallet && (
+        <Field label={`${source.label} account number`} required hint={`You'll approve this transfer with a one-time code sent to this number.`}>
+          {(p) => <PhoneInput {...p} value={walletNumber} onChange={(e) => setWalletNumber(e.target.value)} />}
+        </Field>
+      )}
       <Field label="Amount" required>
         {(p) => <AmountInput {...p} value={amount} onChange={(e) => setAmount(e.target.value)} />}
       </Field>
@@ -555,17 +605,19 @@ function AddMoneyForm({ submit, busy }: FlowFormContext) {
 }
 
 export function AddMoneyView() {
+  const user = useCurrentUser();
   return (
     <>
-      <PageHeader eyebrow="Money" title="Add Money" description="Move money into your wallet from a linked bank account or card." />
+      <PageHeader eyebrow="Money" title="Add Money" description="Move money into your wallet from bKash, Nagad, Rocket, Upay, or a linked bank account or card." />
       <TransactionFlow
         doneHref={DONE}
         confirmLabel={confirmWith("Add")}
-        renderForm={(ctx) => <AddMoneyForm {...ctx} />}
+        renderForm={(ctx) => <AddMoneyForm {...ctx} ownNumber={user.phone} />}
         aside={
           <>
-            <InfoCard title="Add Money" items={[{ label: "Fee", value: "Free" }, { label: "Minimum", value: "৳100" }, { label: "Processed by", value: "Payment gateway" }]} />
+            <InfoCard title="Add Money" items={[{ label: "Fee", value: "Free" }, { label: "Minimum", value: "৳100" }, { label: "Mobile wallets", value: "Verified by one-time code" }, { label: "Processed by", value: "Payment gateway" }]} />
             <DemoHint>
+              <p>Mobile wallet transfers need a one-time code sent to the wallet number. In this demo the code is shown on screen.</p>
               <p>The development gateway approves all charges except amounts ending in <b>.13</b> (e.g. ৳500.13) — use that to see a declined payment.</p>
             </DemoHint>
           </>

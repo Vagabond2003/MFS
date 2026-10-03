@@ -18,6 +18,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Load the database driver with Node's own require (bundling it breaks its socket handling).
+  serverExternalPackages: ["postgres"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

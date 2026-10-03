@@ -14,14 +14,13 @@ import { Tabs } from "@/components/ui/data";
 import { Alert } from "@/components/ui/feedback";
 import { Checkbox, Field, Input, PasswordInput, PhoneInput } from "@/components/ui/form";
 import { ResendButton } from "@/components/flows/transaction-flow";
-import { DEMO_ACCOUNTS, DEMO_PASSWORD } from "@/config/demo-accounts";
 import { useAuth } from "@/hooks/use-auth";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { api } from "@/services";
 import { toApiError } from "@/services/errors";
-import { ROLE_LABEL, safeNextPath } from "@/lib/auth/access";
+import { safeNextPath } from "@/lib/auth/access";
 import { BD_PHONE } from "@/lib/validation";
-import { cn, normalizePhone } from "@/lib/utils";
+import { normalizePhone } from "@/lib/utils";
 import type { OtpChallenge, SessionInfo } from "@/types/domain";
 
 type Method = "phone" | "email";
@@ -96,12 +95,6 @@ export function LoginForm() {
     } finally {
       setVerifying(false);
     }
-  };
-
-  const fillDemo = (identifier: string) => {
-    const isEmail = identifier.includes("@");
-    form.reset({ method: isEmail ? "email" : "phone", identifier, password: DEMO_PASSWORD, remember: false });
-    setError(null);
   };
 
   if (challenge) {
@@ -194,38 +187,6 @@ export function LoginForm() {
         </Button>
       </form>
 
-      {api.mode === "mock" && <DemoAccounts onPick={fillDemo} />}
-    </div>
-  );
-}
-
-function DemoAccounts({ onPick }: { onPick: (identifier: string) => void }) {
-  const roleTone: Record<string, string> = {
-    PERSONAL: "bg-emerald-50 text-emerald-700",
-    AGENT: "bg-amber-50 text-amber-800",
-    MERCHANT: "bg-indigo-50 text-indigo-700",
-    ADMIN: "bg-sky-50 text-sky-700",
-  };
-  return (
-    <div className="mt-10 rounded-2xl border border-dashed border-amber-300 bg-amber-50/50 p-4">
-      <p className="text-xs font-bold uppercase tracking-wider text-amber-900">Development demo accounts</p>
-      <p className="mt-1 text-xs text-amber-900/80">
-        Fictional accounts. Password <span className="font-mono font-semibold">{DEMO_PASSWORD}</span> · PIN <span className="font-mono font-semibold">24680</span>. Click to fill the form.
-      </p>
-      <ul className="mt-3 grid gap-1.5">
-        {DEMO_ACCOUNTS.map((a) => (
-          <li key={a.identifier}>
-            <button type="button" onClick={() => onPick(a.identifier)} className="flex w-full items-center gap-3 rounded-xl bg-white px-3 py-2 text-left ring-1 ring-amber-200/60 transition hover:ring-amber-400">
-              <span className={cn("w-[72px] shrink-0 rounded-md px-1.5 py-0.5 text-center text-[10px] font-bold uppercase tracking-wide", roleTone[a.role])}>{ROLE_LABEL[a.role]}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-slate-900">{a.name}</span>
-                <span className="block truncate text-[11px] text-slate-500">{a.note}</span>
-              </span>
-              <span className="tabular hidden text-[11px] text-slate-400 sm:block">{a.identifier}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

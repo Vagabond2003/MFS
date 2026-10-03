@@ -260,7 +260,8 @@ export type OperationRequest =
       paymentCode?: string;
       reference?: string;
     }
-  | { kind: "ADD_MONEY"; sourceId: string; amount: Money }
+  /** `walletNumber` is required when the source is a mobile wallet (bKash, Nagad, …). */
+  | { kind: "ADD_MONEY"; sourceId: string; amount: Money; walletNumber?: string }
   | { kind: "AGENT_CASH_IN"; customer: string; amount: Money }
   | { kind: "AGENT_CASH_OUT"; customer: string; amount: Money }
   | { kind: "AGENT_RECHARGE"; operator: Operator; number: string; amount: Money }
@@ -294,6 +295,8 @@ export interface OperationQuote {
   requiresOtp: boolean;
   /** Who receives the OTP: the signed-in user, or the customer (agent-assisted cash out). */
   otpTarget: "SELF" | "CUSTOMER" | null;
+  /** Masked number the code will be sent to. */
+  otpDestination: string | null;
   otpReason: string | null;
   summary: SummaryRow[];
   warnings: string[];
@@ -460,7 +463,8 @@ export interface SettlementView {
 
 export interface FundingSource {
   id: string;
-  kind: "BANK" | "CARD";
+  /** MFS = an external mobile wallet (bKash, Nagad, Rocket, Upay), verified per transfer with a one-time code. */
+  kind: "BANK" | "CARD" | "MFS";
   label: string;
   masked: string;
 }

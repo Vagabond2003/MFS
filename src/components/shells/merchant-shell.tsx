@@ -9,7 +9,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { MERCHANT_MOBILE, MERCHANT_NAV, isActive } from "@/config/navigation";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import { DemoBanner, MobileBottomNav, NotificationBell, UserMenu, useThemeClass } from "./shared";
+import { MobileBottomNav, NotificationBell, UserMenu, useThemeClass } from "./shared";
 
 /**
  * Merchant shell — a business suite: no sidebar; a top bar carrying the
@@ -23,7 +23,6 @@ export function MerchantShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="theme-merchant min-h-dvh bg-[#f5f5fb]">
-      <DemoBanner />
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-4">

@@ -294,7 +294,7 @@ export function ReceivePaymentView() {
                       <Copy className="h-4 w-4" aria-hidden /> Copy QR content
                     </Button>
                   </div>
-                  {api.mode === "mock" && (
+                  {api.mode !== "http" && (
                     <div className="mt-6 w-full rounded-2xl border border-dashed border-amber-300 bg-amber-50/70 p-4 text-left">
                       <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-900">
                         <FlaskConical className="h-3.5 w-3.5" aria-hidden /> Development QR provider

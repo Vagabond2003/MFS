@@ -72,7 +72,7 @@ export function AgentCashInView() {
           <>
             <InfoCard title="Cash In" items={[{ label: "Customer fee", value: "Free" }, { label: "Your commission", value: "0.20%" }, { label: "Per transaction", value: "Up to ৳30,000" }]} />
             <DemoHint>
-              <p>Customers: <b>01710000001</b>, <b>01710000002</b>, <b>01710000003</b>.</p>
+              <p>Customer: <b>01700000001</b> (Ashraful Islam), or any personal account you register.</p>
             </DemoHint>
           </>
         }

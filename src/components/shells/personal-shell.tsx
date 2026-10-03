@@ -5,7 +5,7 @@ import { Headphones } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { PERSONAL_MOBILE, PERSONAL_NAV } from "@/config/navigation";
 import { useCurrentUser } from "@/hooks/use-auth";
-import { DemoBanner, MobileBottomNav, NotificationBell, SidebarNav, UserMenu, useThemeClass } from "./shared";
+import { MobileBottomNav, NotificationBell, SidebarNav, UserMenu, useThemeClass } from "./shared";
 
 /**
  * Personal customer shell — light, consumer-friendly: a calm sidebar grouped
@@ -34,7 +34,6 @@ export function PersonalShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="lg:pl-64">
-        <DemoBanner />
         <header className="sticky top-0 z-30 border-b border-slate-200/60 bg-canvas/85 backdrop-blur">
           <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
             <div className="lg:hidden">

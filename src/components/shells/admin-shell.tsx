@@ -5,7 +5,7 @@ import { Menu, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { Sheet } from "@/components/ui/modal";
 import { ADMIN_NAV } from "@/config/navigation";
-import { DemoBanner, NotificationBell, SidebarNav, UserMenu, useThemeClass } from "./shared";
+import { NotificationBell, SidebarNav, UserMenu, useThemeClass } from "./shared";
 
 /** Admin shell — a compact back-office console, visually separate from customer apps. */
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -25,7 +25,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <div className="lg:pl-60">
-        <DemoBanner />
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
           <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-6">
             <div className="flex items-center gap-2">

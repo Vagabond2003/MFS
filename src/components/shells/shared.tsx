@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, CheckCheck, FlaskConical, LogOut, MonitorSmartphone, RefreshCw, UserRound, X } from "lucide-react";
+import { Bell, CheckCheck, LogOut, MonitorSmartphone, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, Popover } from "@/components/ui/popover";
 import { ConfirmDialog, Sheet } from "@/components/ui/modal";
@@ -22,42 +22,6 @@ export function useThemeClass(theme: string) {
     document.body.classList.add(theme);
     return () => document.body.classList.remove(theme);
   }, [theme]);
-}
-
-/* ───────────── Demo environment banner ───────────── */
-
-export function DemoBanner() {
-  const [confirm, setConfirm] = useState(false);
-  const [hidden, setHidden] = useState(false);
-  if (api.mode !== "mock" || hidden) return null;
-  return (
-    <div className="no-print relative z-40 flex items-center justify-center gap-2 bg-amber-100 px-10 py-1.5 text-center text-xs text-amber-900">
-      <FlaskConical className="hidden h-3.5 w-3.5 shrink-0 sm:block" aria-hidden />
-      <span>
-        <strong>Demo environment</strong> — mock API, fictional data stored in this browser.
-      </span>
-      <button type="button" onClick={() => setConfirm(true)} className="inline-flex items-center gap-1 font-semibold underline underline-offset-2 hover:no-underline">
-        <RefreshCw className="h-3 w-3" aria-hidden /> Reset data
-      </button>
-      <button type="button" onClick={() => setHidden(true)} className="absolute right-2 grid h-6 w-6 place-items-center rounded hover:bg-amber-200" aria-label="Hide demo banner">
-        <X className="h-3.5 w-3.5" />
-      </button>
-      <ConfirmDialog
-        open={confirm}
-        onClose={() => setConfirm(false)}
-        title="Reset demo data?"
-        description="This wipes everything created in this browser (registrations, transactions, approvals) and restores the original demo dataset. You'll be signed out."
-        confirmLabel="Reset and sign out"
-        tone="danger"
-        onConfirm={async () => {
-          await api.dev.resetDemoData();
-          // Hard navigation clears all in-memory state after the reset.
-          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-          window.location.assign("/login");
-        }}
-      />
-    </div>
-  );
 }
 
 /* ───────────── Notification bell ───────────── */

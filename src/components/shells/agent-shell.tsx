@@ -8,7 +8,7 @@ import { useApi } from "@/hooks/use-api";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { api } from "@/services";
 import { formatMoney } from "@/lib/utils";
-import { DemoBanner, MobileBottomNav, NotificationBell, SidebarNav, UserMenu, useThemeClass } from "./shared";
+import { MobileBottomNav, NotificationBell, SidebarNav, UserMenu, useThemeClass } from "./shared";
 
 /**
  * Agent shell — an operations console: dark sidebar with an amber accent,
@@ -41,7 +41,6 @@ export function AgentShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="lg:pl-[264px]">
-        <DemoBanner />
         <header className="sticky top-0 z-30 bg-slate-950 text-white lg:bg-white lg:text-slate-900 lg:shadow-[0_1px_0_rgb(15_23_42/0.06)]">
           <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
             <div className="lg:hidden">

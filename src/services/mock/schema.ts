@@ -20,7 +20,7 @@ import type {
   TransactionType,
 } from "@/types/domain";
 
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 /** users */
 export interface UserRecord {

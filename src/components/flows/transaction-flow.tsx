@@ -94,7 +94,7 @@ export function TransactionFlow({
     try {
       setChallenge(await api.operations.requestOtp(request));
       setOtp("");
-      toast.success(quote?.otpTarget === "CUSTOMER" ? "Code sent to the customer" : "Code sent to your phone");
+      toast.success(quote?.otpTarget === "CUSTOMER" ? "Code sent to the customer" : `Code sent to ${quote?.otpDestination ?? "your phone"}`);
     } catch (e) {
       toast.error(toApiError(e).message);
     } finally {
@@ -214,7 +214,7 @@ export function TransactionFlow({
                       </>
                     ) : (
                       <Button variant="soft" onClick={sendOtp} loading={busy}>
-                        Send code to {quote.otpTarget === "CUSTOMER" ? "customer" : "my phone"}
+                        Send code to {quote.otpTarget === "CUSTOMER" ? "customer" : quote.otpDestination ?? "my phone"}
                       </Button>
                     )}
                   </div>

@@ -187,7 +187,8 @@ export interface DevToolsApi {
 }
 
 export interface ApiClient {
-  mode: "mock" | "http";
+  /** supabase = this app's server + database · http = external backend */
+  mode: "supabase" | "http";
   auth: AuthApi;
   registration: RegistrationApi;
   uploads: UploadApi;

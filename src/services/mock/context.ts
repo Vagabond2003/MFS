@@ -1,17 +1,17 @@
-import { SESSION_COOKIE, decodeMockToken, encodeMockToken } from "@/lib/auth/session-token";
 import { formatMoney, maskPhone } from "@/lib/utils";
 import type { NotificationType, OtpChallenge, OtpPurpose, Role } from "@/types/domain";
 import { ApiError } from "../errors";
 import { providers } from "../providers";
 import { randomDigits, randomId, sha256Hex } from "./crypto";
 import { SECURITY } from "./policy";
+import { requestEnv } from "./runtime";
 import type { DbState, SessionRecord, UserRecord } from "./schema";
 
 /* ───────────── Request metadata (what a server would read from headers) ───────────── */
 
 export function requestDevice() {
-  if (typeof navigator === "undefined") return "Unknown device";
-  const ua = navigator.userAgent;
+  const ua = requestEnv().userAgent();
+  if (!ua) return "Unknown device";
   const browser = /Edg\//.test(ua)
     ? "Edge"
     : /Chrome\//.test(ua)
@@ -35,8 +35,10 @@ export function requestDevice() {
   return `${browser} on ${os}`;
 }
 
-/** The mock cannot see a real client IP; a documentation-range address is used. */
-export const MOCK_IP = "203.0.113.24";
+export function requestIp() {
+  return requestEnv().ip();
+}
+
 export const MOCK_LOCATION = "Dhaka, BD (approx.)";
 
 export function maskIp(ip: string) {
@@ -46,23 +48,13 @@ export function maskIp(ip: string) {
 
 /* ───────────── Session cookie ───────────── */
 
-function readCookie(name: string) {
-  if (typeof document === "undefined") return null;
-  const hit = document.cookie.split("; ").find((c) => c.startsWith(`${name}=`));
-  return hit ? decodeURIComponent(hit.slice(name.length + 1)) : null;
-}
-
 export function setSessionCookie(session: SessionRecord, role: Role) {
   const exp = Math.floor(Date.parse(session.expiresAt) / 1000);
-  const token = encodeMockToken({ sid: session.id, role, exp });
-  const maxAge = session.remember ? `; max-age=${SECURITY.rememberDays * 86400}` : "";
-  const secure = typeof location !== "undefined" && location.protocol === "https:" ? "; secure" : "";
-  document.cookie = `${SESSION_COOKIE}=${encodeURIComponent(token)}; path=/; samesite=lax${maxAge}${secure}`;
+  requestEnv().setSession({ sid: session.id, role, exp }, session.remember);
 }
 
 export function clearSessionCookie() {
-  if (typeof document === "undefined") return;
-  document.cookie = `${SESSION_COOKIE}=; path=/; max-age=0; samesite=lax`;
+  requestEnv().clearSession();
 }
 
 /**
@@ -70,8 +62,7 @@ export function clearSessionCookie() {
  * table — NOT from the cookie — so an edited cookie cannot elevate privileges.
  */
 export function resolveCaller(db: DbState): { user: UserRecord; session: SessionRecord } | null {
-  const token = readCookie(SESSION_COOKIE);
-  const claims = token ? decodeMockToken(token) : null;
+  const claims = requestEnv().claims();
   if (!claims) return null;
   const session = db.sessions.find((s) => s.id === claims.sid);
   if (!session || session.revokedAt || Date.parse(session.expiresAt) <= Date.now()) return null;
@@ -97,7 +88,7 @@ export function createSession(db: DbState, user: UserRecord, remember: boolean):
     userId: user.id,
     device: requestDevice(),
     location: MOCK_LOCATION,
-    ip: MOCK_IP,
+    ip: requestIp(),
     remember,
     createdAt: now.toISOString(),
     lastActiveAt: now.toISOString(),
@@ -127,7 +118,7 @@ export function audit(
     actorName: entry.actor?.name ?? "Anonymous",
     action: entry.action,
     target: entry.target ?? null,
-    ip: MOCK_IP,
+    ip: requestIp(),
     createdAt: entry.at ?? new Date().toISOString(),
     metadata: { device: requestDevice(), ...entry.metadata },
   });

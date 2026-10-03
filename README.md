@@ -2,62 +2,44 @@
 
 A Mobile Financial Services web app with three isolated customer roles — **Personal**, **Agent**, **Merchant** — plus an **Admin** back office.
 
-> **Scope of this repository: frontend only.**
-> There is no database or backend server here. The UI talks to a typed API contract (`src/services/contracts.ts`) with two implementations:
->
-> | Mode | What it is | Use it for |
-> |---|---|---|
-> | `mock` (default) | An in-browser development server with seeded, fictional data, persisted to `localStorage`. It enforces the same rules a backend must (sessions, RBAC, verification gates, fees, limits, PIN/OTP, atomic posting, audit log). | Running and demoing the app locally |
-> | `http` | A REST client for a real backend (see [API contract](#connecting-a-real-backend)). | Production |
->
-> **The mock is not a security boundary.** Anything running in a browser can be modified by its user. It exists so every flow can be exercised end-to-end today. Real security comes from the backend implementing the contract below.
+> **How it runs.** The UI talks to a typed API contract (`src/services/contracts.ts`). In the default `supabase` mode the API handlers run on this Next.js server (`/api/rpc`) and store everything in a Supabase PostgreSQL database. They enforce sessions, RBAC, verification gates, fees, limits, PIN/OTP, atomic posting and the audit log. An `http` mode is also available for an external REST backend (see [API contract](#connecting-a-real-backend)).
 
 ---
 
 ## Quick start
 
-Requirements: Node.js 20.9+ (tested on Node 25), npm.
+Requirements: Node.js 20.9+ (tested on Node 25), npm, a Supabase project.
 
-```bash
-npm install
-```
-
-```bash
-cp .env.example .env.local
-```
-
-```bash
-npm run dev
-```
-
-Open http://localhost:3000. No database setup is needed in mock mode: the demo dataset (about six months of activity) is generated in your browser on first load. Use **Reset data** in the yellow demo banner to start over.
+1. In the Supabase **SQL Editor**, run `supabase/schema.sql`, then `supabase/seed.sql` (once each — re-running `schema.sql` deletes all data).
+2. `npm install`
+3. `cp .env.example .env.local`, then fill in:
+   - `DATABASE_URL` — Supabase → **Connect** → **Direct** → Method **Transaction pooler** (port 6543), with your database password.
+   - `AUTH_JWT_SECRET` — any random string of 32+ characters.
+4. `npm run dev` and open http://localhost:3000.
 
 Other scripts: `npm run build`, `npm start`, `npm run lint`, `npm run typecheck`.
 
-### Demo accounts (development only — fictional people and businesses)
+### Starting accounts (from `supabase/seed.sql`)
 
-Password for all: **`Demo@1234`** · Transaction PIN: **`24680`**. The login page lists these and fills the form on click. OTP codes are shown on screen by the **development SMS provider**.
+Transaction PIN for all: **`24680`**. OTP codes are shown on screen by the **development SMS provider** (no real SMS gateway is connected).
 
-| Role | Sign in with | State |
+| Role | Sign in with | Password |
 |---|---|---|
-| Personal | `01710000001` (Nadia Islam) | Verified — main demo customer |
-| Personal | `01710000002` (Tanvir Ahmed) | Verified |
-| Personal | `01710000003` (Farhana Kabir) | KYC pending — ৳5,000/txn limit |
-| Agent | `01810000001` (Hossain Telecom Point) | Verified |
-| Agent | `01810000002` (Akter Mobile Corner) | Under review — counter operations locked |
-| Merchant | `01910000001` (Spice Garden Restaurant, `MR-40021`) | Verified |
-| Merchant | `01910000002` (FreshMart Grocery, `MR-40022`) | Pending — cannot receive payments |
-| Admin | `admin@example.com` | 2FA on (OTP at sign-in) |
+| Personal | `01700000001` (Ashraful Islam) | `demo@1234` |
+| Agent | `01814557644` (Sabbir_Tele, `AG-10001`) | `demo@1234` |
+| Merchant | `01773519331` (Nafiztong, `MR-40001`) | `demo@1234` |
+| Admin | `admin@example.com` | `Demo@1234` — 2FA on (OTP at sign-in) |
 
-### A five-minute tour
+Wallets start at ৳0; the agent starts with ৳50,000 of cash recorded at the outlet. New accounts are created through `/register` and saved to the database.
 
-1. **Role isolation.** Sign in as Nadia, then type `/dashboard/merchant` in the address bar → **403**. The proxy blocks it before the page renders.
-2. **Step-up auth.** Send ৳10,000+ to `01710000002` → PIN **and** OTP are required. Enter a wrong PIN 3 times → PIN locked for 15 minutes.
-3. **Verification gate.** Sign in as `01810000002` (agent under review) → counter operations are locked. Sign in as admin → **Verifications** → approve *Akter Mobile Corner* → sign back in as the agent → Cash In works.
-4. **Unverified merchant.** As Nadia, *Merchant Pay* → `MR-40022` → refused server-side.
-5. **Dynamic QR.** As Spice Garden → *Receive payment* → generate a QR → *Simulate customer payment* (development QR provider) → confirmation appears live.
-6. **Agent-assisted Cash Out.** As agent `01810000001` → *Cash Out* for `01710000001` → the customer's OTP appears on screen.
-7. **Registration.** `/register` → pick a role → complete the wizard (OTP shown on screen; uploads are type-, size- and magic-byte-checked).
+### A quick tour
+
+1. **Role isolation.** Sign in as Ashraful, then open `/dashboard/merchant` → **403**. The proxy blocks it before the page renders.
+2. **Add Money.** As Ashraful → *Add Money* → bKash / Nagad / Rocket / Upay → approve with the one-time code and PIN.
+3. **Agent Cash Out / Cash In.** As Ashraful, *Cash Out* at `01814557644`; as Sabbir_Tele, *Cash In* to `01700000001`.
+4. **Merchant payment.** As Ashraful → *Merchant Pay* → `MR-40001`.
+5. **Verification gate.** Register a new agent or merchant at `/register` → it stays locked until the admin approves it under **Verifications**.
+6. **Registration.** `/register` → pick a role → complete the wizard (OTP shown on screen; uploads are type-, size- and magic-byte-checked).
 
 ---
 
@@ -76,7 +58,7 @@ Browser ── request ──► src/proxy.ts (server, before render)
                            users table, never from the cookie) and re-checks the route
                          • renders the role's own shell: Personal / Agent / Merchant / Admin
                      ──► page → feature view → api.* (services/contracts.ts)
-                                                  ├─ services/mock  (dev server in the browser)
+                                                  ├─ services/mock  (API handlers, run on the server)
                                                   └─ services/http  (REST backend)
 ```
 
@@ -111,7 +93,7 @@ src/
 ├─ services/
 │  ├─ contracts.ts              The API contract the UI depends on
 │  ├─ http/                     REST implementation
-│  ├─ mock/                     Development server: schema, store (atomic writes), ledger,
+│  ├─ mock/                     API handlers (run on the server): schema, store (atomic writes), ledger,
 │  │                            policy (fees/limits/RBAC), seed, analytics, handlers
 │  └─ providers/                SMS/OTP, KYC, storage, payment gateway, billers, QR codec — dev implementations
 ├─ lib/                         auth (access map, session token), validation (zod, shared), utils
@@ -219,6 +201,5 @@ Request and response shapes are the TypeScript types in `src/services/contracts.
 
 ## Limitations
 
-* Mock mode keeps data in one browser profile. One browser holds one session at a time (use a second browser profile to act as two users at once).
 * Camera QR scanning belongs in the native app. On the web, the customer pastes the QR content (copyable from the merchant screen).
 * Document previews show a placeholder: the development storage provider keeps metadata and a hash only.
