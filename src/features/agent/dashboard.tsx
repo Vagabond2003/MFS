@@ -26,6 +26,7 @@ import { useI18n } from "@/hooks/use-i18n";
 import { msg } from "@/lib/i18n/core";
 import { api } from "@/services";
 import { cn, formatCount, formatMoney } from "@/lib/utils";
+import { LiquidityCard } from "../insights/agent";
 import { VerificationProgress } from "../shared/verification";
 
 const COUNTER = [
@@ -112,6 +113,8 @@ export function AgentDashboardView() {
           </div>
         )}
       </section>
+
+      {verified && <LiquidityCard />}
 
       {/* Counter actions */}
       <section aria-label={t("Agent quick actions")}>
