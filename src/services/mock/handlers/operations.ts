@@ -190,7 +190,7 @@ function resolve(db: DbState, user: UserRecord, req: OperationRequest): Resolved
         sender: me,
         receiver: selfParty(db, merchant),
         amount,
-        receiverFee: fees.receiverFee,
+        senderFee: fees.senderFee,
         paymentMethod: paymentRequest ? "QR_SCAN" : "MERCHANT_ID",
         description: req.reference?.trim() || `Payment to ${selfParty(db, merchant).name}`,
         reference: req.reference?.trim() || paymentRequest?.note || null,

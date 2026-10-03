@@ -331,7 +331,7 @@ export const publicSite: Record<string, string> = {
   "The PIN authorises refunds and settlements.": "পিন দিয়ে রিফান্ড ও সেটেলমেন্ট অনুমোদিত হয়।",
   "Category": "ধরন",
   "{n} uploaded": "{n}টি আপলোড হয়েছে",
-  "Merchant Terms (demo): a merchant discount rate of 1.5% applies to each received payment. Refunds are allowed within 30 days of payment. Settlements are paid to the verified bank account on file. You must not accept payments for prohibited goods or services.": "মার্চেন্ট শর্তাবলি (ডেমো): প্রতিটি প্রাপ্ত পেমেন্টে ১.৫% মার্চেন্ট ডিসকাউন্ট রেট প্রযোজ্য। পেমেন্টের ৩০ দিনের মধ্যে রিফান্ড করা যায়। সেটেলমেন্ট নথিভুক্ত ভেরিফাইড ব্যাংক অ্যাকাউন্টে পাঠানো হয়। নিষিদ্ধ পণ্য বা সেবার জন্য পেমেন্ট গ্রহণ করা যাবে না।",
+  "Merchant Terms (demo): customers pay a 1.5% service charge on top of each payment; you receive the full amount. Refunds are allowed within 30 days of payment. Settlements are paid to the verified bank account on file. You must not accept payments for prohibited goods or services.": "মার্চেন্ট শর্তাবলি (ডেমো): প্রতিটি পেমেন্টে গ্রাহক অতিরিক্ত ১.৫% সার্ভিস চার্জ দেন; আপনি পুরো টাকা পান। পেমেন্টের ৩০ দিনের মধ্যে রিফান্ড করা যায়। সেটেলমেন্ট নথিভুক্ত ভেরিফাইড ব্যাংক অ্যাকাউন্টে পাঠানো হয়। নিষিদ্ধ পণ্য বা সেবার জন্য পেমেন্ট গ্রহণ করা যাবে না।",
   "I accept the Merchant Terms and confirm the business information is accurate": "আমি মার্চেন্ট শর্তাবলি মেনে নিচ্ছি এবং নিশ্চিত করছি যে ব্যবসার তথ্য সঠিক",
   "Business submitted for verification": "ব্যবসা ভেরিফিকেশনের জন্য জমা হয়েছে",
   "Your merchant account was created. Sign in to follow the verification of your business.": "আপনার মার্চেন্ট অ্যাকাউন্ট তৈরি হয়েছে। ব্যবসার ভেরিফিকেশন দেখতে সাইন ইন করুন।",

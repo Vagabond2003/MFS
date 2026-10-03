@@ -43,7 +43,8 @@ export const RATES = {
   customerPaymentCommission: 0.005,
   customerPaymentCommissionMin: T(2),
   customerPaymentCommissionMax: T(20),
-  merchantDiscountRate: 0.015,
+  /** Charged to the paying customer on top of the amount; the merchant receives the full amount. */
+  merchantPaymentFee: 0.015,
 };
 
 export interface FeeBreakdown {
@@ -74,7 +75,7 @@ export function computeFees(kind: OperationKind, amount: number): FeeBreakdown {
       return { senderFee: 0, receiverFee: 0, commission: c };
     }
     case "MERCHANT_PAYMENT":
-      return { senderFee: 0, receiverFee: pct(RATES.merchantDiscountRate), commission: 0 };
+      return { senderFee: pct(RATES.merchantPaymentFee), receiverFee: 0, commission: 0 };
     default:
       return { senderFee: 0, receiverFee: 0, commission: 0 };
   }

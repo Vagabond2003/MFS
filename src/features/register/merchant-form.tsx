@@ -255,7 +255,7 @@ export function MerchantRegistration() {
             error={errors.otpChallengeId?.message ?? errors.otpCode?.message}
           />
           <TermsBox>
-            {t("Merchant Terms (demo): a merchant discount rate of 1.5% applies to each received payment. Refunds are allowed within 30 days of payment. Settlements are paid to the verified bank account on file. You must not accept payments for prohibited goods or services.")}
+            {t("Merchant Terms (demo): customers pay a 1.5% service charge on top of each payment; you receive the full amount. Refunds are allowed within 30 days of payment. Settlements are paid to the verified bank account on file. You must not accept payments for prohibited goods or services.")}
           </TermsBox>
           <Checkbox label={t("I accept the Merchant Terms and confirm the business information is accurate")} {...form.register("acceptTerms")} />
           {errors.acceptTerms?.message && <p className="text-[13px] font-medium text-rose-600">{t(errors.acceptTerms.message)}</p>}
