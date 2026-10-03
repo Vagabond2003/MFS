@@ -1,6 +1,6 @@
 import postgres from "postgres";
 import { ApiError } from "@/services/errors";
-import { DB_VERSION, type DbState } from "@/services/mock/schema";
+import { DB_VERSION, type AiInsightRecord, type DbState } from "@/services/mock/schema";
 import { assertInvariants, type StoreBackend } from "@/services/mock/store";
 
 /**
@@ -174,7 +174,7 @@ function fromRow(spec: TableSpec, row: Row, types: Map<string, string>): Row {
   const nested: Record<string, Row> = {};
   for (const [col, raw] of Object.entries(row)) {
     const type = types.get(col);
-    const value = raw !== null && type === "timestamptz" ? new Date(raw as string).toISOString() : raw;
+    const value = raw !== null && type === "timestamptz" ? new Date(raw as string).toISOString() : JSON_TYPES.has(type ?? "") ? decodeJson(raw) : raw;
     const hit = nestedColumns.get(col);
     if (hit) (nested[hit[0]] ??= {})[hit[1]] = value;
     else record[camel(col)] = value;
@@ -183,6 +183,21 @@ function fromRow(spec: TableSpec, row: Row, types: Map<string, string>): Row {
     record[field] = Object.values(obj).every((v) => v === null) ? null : obj;
   }
   return record;
+}
+
+const JSON_TYPES = new Set(["json", "jsonb"]);
+
+/**
+ * Rows saved before the jsonb fix hold their JSON as a JSON *string*
+ * ("{\"device\":…}") — read those back as the object they encode.
+ */
+function decodeJson(raw: unknown): unknown {
+  if (typeof raw !== "string" || !/^\s*[{[]/.test(raw)) return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
 }
 
 /** JSON with object keys sorted — Postgres jsonb does not keep key order. */
@@ -284,7 +299,9 @@ async function saveDiff(tx: Sql, before: DbState, after: DbState) {
         const chunk = changed.slice(i, i + perChunk);
         const params: (string | null)[] = [];
         const values = chunk
-          .map((row) => `(${columns.map((c) => { params.push(toParam(row[c])); return `$${params.length}::"${cols.get(c)}"`; }).join(", ")})`)
+          // JSON goes in as text and is cast once: a parameter typed jsonb would make
+          // postgres.js JSON-encode the already-encoded string a second time.
+          .map((row) => `(${columns.map((c) => { params.push(toParam(row[c])); return JSON_TYPES.has(cols.get(c) ?? "") ? `$${params.length}::text::"${cols.get(c)}"` : `$${params.length}::"${cols.get(c)}"`; }).join(", ")})`)
           .join(", ");
         const update = columns.filter((c) => c !== spec.pk).map((c) => `"${c}" = excluded."${c}"`).join(", ");
         await tx.unsafe(
@@ -345,3 +362,40 @@ export const dbStore: StoreBackend = {
     throw new ApiError("NOT_SUPPORTED", "Resetting is disabled when the app is connected to a real database.");
   },
 };
+
+/**
+ * Counts a model call against the user's AI budget and caches the wording, in
+ * a few small statements under the same lock as write() — without loading the
+ * whole database. Cache rows and rate-limit counters are not ledger data.
+ */
+export async function recordAiNote(input: { rateKey: string; limit: number; windowMs: number; note: AiInsightRecord | null }) {
+  const types = await columnTypes();
+  const tx = await sql().reserve();
+  try {
+    await tx`begin`;
+    try {
+      await tx`select pg_advisory_xact_lock(${WRITE_LOCK})`;
+      const now = Date.now();
+      // Same fixed window as consumeRateLimit(): a new window starts at 1; otherwise count up to the limit.
+      await tx`
+        insert into rate_limits (key, count, reset_at) values (${input.rateKey}, 1, ${now + input.windowMs})
+        on conflict (key) do update set
+          count = case when rate_limits.reset_at <= ${now} then 1 else least(rate_limits.count + 1, ${input.limit}) end,
+          reset_at = case when rate_limits.reset_at <= ${now} then excluded.reset_at else rate_limits.reset_at end`;
+      const note = input.note;
+      if (note && types.has("ai_insights")) {
+        // Keep one entry per user, kind and language, and nothing older than two days.
+        await tx`delete from ai_insights where created_at < now() - interval '2 days' or (user_id = ${note.userId} and kind = ${note.kind} and language = ${note.language})`;
+        await tx`
+          insert into ai_insights (id, user_id, kind, language, input_hash, payload, model, created_at)
+          values (${note.id}, ${note.userId}, ${note.kind}, ${note.language}, ${note.inputHash}, ${JSON.stringify(note.payload)}::text::jsonb, ${note.model}, ${note.createdAt}::timestamptz)`;
+      }
+      await tx`commit`;
+    } catch (err) {
+      await tx`rollback`.catch(() => undefined);
+      throw err;
+    }
+  } finally {
+    tx.release();
+  }
+}
