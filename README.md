@@ -1,6 +1,16 @@
-# Kosh — MFS web app (frontend)
+# Kosh — MFS web app
 
 A Mobile Financial Services web app with three isolated customer roles — **Personal**, **Agent**, **Merchant** — plus an **Admin** back office.
+
+**Live:** https://kosh-bd.vercel.app (Vercel, Singapore region). Sign in with the [starting accounts](#starting-accounts-from-supabaseseedsql) below.
+
+**What's in it**
+
+* Wallets, Send Money, Cash In/Out at agents, Mobile Recharge, Bill Payment, Merchant Pay (QR and Merchant ID), Add Money, refunds and settlements. Everything runs on a server-side ledger with fees, limits, PIN and OTP.
+* Merchant & agent intelligence (hackathon Track 05): liquidity forecasts for agents, sales forecasts and peer benchmarks for merchants, churn risk, agent patterns and district coverage for admins. Figures are computed in code; AI only writes the words ([details](#merchant--agent-intelligence)).
+* OTP codes by SMS (sms.net.bd) and email (Brevo), plus account and transaction emails ([SMS](#sms), [Email](#email)).
+* Profile pictures at sign-up and in the profile, shown across the app ([details](#profile-pictures)).
+* English and বাংলা throughout, with a per-user saved language ([details](#languages-english--বাংলা)).
 
 > **How it runs.** The UI talks to a typed API contract (`src/services/contracts.ts`). In the default `supabase` mode the API handlers run on this Next.js server (`/api/rpc`) and store everything in a Supabase PostgreSQL database. They enforce sessions, RBAC, verification gates, fees, limits, PIN/OTP, atomic posting and the audit log. An `http` mode is also available for an external REST backend (see [API contract](#connecting-a-real-backend)).
 
@@ -31,7 +41,7 @@ Other scripts: `npm run build`, `npm start`, `npm run lint`, `npm run typecheck`
 
 ### Starting accounts (from `supabase/seed.sql`)
 
-Transaction PIN for all: **`24680`**. OTP codes are shown on screen by the **development SMS provider** (no real SMS gateway is connected).
+Transaction PIN for all: **`24680`**. OTP codes are shown on screen (`OTP_SHOW_CODES`, on by default). These are demo accounts, so they never receive real SMS or email: their numbers are made up and their emails use `example.com`. Accounts you register with a real number and email get the codes there too.
 
 | Role | Sign in with | Password |
 |---|---|---|
@@ -57,7 +67,10 @@ Wallets start at ৳0; the agent starts with ৳50,000 of cash recorded at the o
 3. **Agent Cash Out / Cash In.** As Ashraful, *Cash Out* at `01814557644`; as Sabbir_Tele, *Cash In* to `01700000001`.
 4. **Merchant payment.** As Ashraful → *Merchant Pay* → `MR-40001`.
 5. **Verification gate.** Register a new agent or merchant at `/register` → it stays locked until the admin approves it under **Verifications**.
-6. **Registration.** `/register` → pick a role → complete the wizard (OTP shown on screen; uploads are type-, size- and magic-byte-checked).
+6. **Registration.** `/register` → pick a role → complete the wizard. Add a profile picture on the first step if you like. The code is shown on screen and also goes to the number (and email) you entered. Uploads are type-, size- and magic-byte-checked.
+7. **Profile picture.** Profile → *Change photo*. The picture appears in the header, in transaction lists and details, on the payment review screen, and in the admin user list.
+8. **বাংলা.** Use the language toggle in any header. Signed-in users keep the choice on every device.
+9. **Insights.** See the [5-minute demo script](#demo-script-5-minutes).
 
 ---
 
@@ -76,8 +89,11 @@ Browser ── request ──► src/proxy.ts (server, before render)
                            users table, never from the cookie) and re-checks the route
                          • renders the role's own shell: Personal / Agent / Merchant / Admin
                      ──► page → feature view → api.* (services/contracts.ts)
-                                                  ├─ services/mock  (API handlers, run on the server)
-                                                  └─ services/http  (REST backend)
+                                                  ├─ services/rpc → POST /api/rpc → src/server/rpc.ts
+                                                  │     → services/mock handlers (run on the server)
+                                                  │     → src/server/db-store.ts (Supabase PostgreSQL)
+                                                  │     → after the call: queued email (Brevo) and SMS (sms.net.bd)
+                                                  └─ services/http  (external REST backend)
 ```
 
 * **Route RBAC has one source of truth:** `src/lib/auth/access.ts`, used by both the proxy and the client guard.
@@ -94,15 +110,18 @@ src/
 │  ├─ (auth)/login, forgot-password
 │  ├─ register/{personal,agent,merchant}
 │  ├─ unauthorized/             403
+│  ├─ api/rpc                   The API endpoint
+│  ├─ api/avatars/[id]          Profile pictures (signed-in users)
+│  ├─ api/documents/[id]        Verification documents (admins, audit-logged)
 │  └─ (app)/                    Authenticated area (AppFrame)
 │     ├─ dashboard/personal/*   send, cash-out, recharge, pay-bill, merchant-pay, add-money
 │     ├─ dashboard/agent/*      cash-in, cash-out, recharge, customer-payment, liquidity, commission, settlement, verification
 │     ├─ dashboard/merchant/*   receive, qr, sales, insights, refunds, settlement, business
 │     ├─ admin/*                intelligence, users, verifications, transactions, disputes, audit-logs
 │     └─ transactions, notifications, profile   (shared, rendered in the caller's shell)
-├─ features/                    Screens, grouped by role/domain
+├─ features/                    Screens, grouped by role/domain (insights/ = intelligence screens)
 ├─ components/
-│  ├─ ui/                       Design system (Button, Card, Field, Modal/Sheet, Table, Badge, CodeInput, FileDrop…)
+│  ├─ ui/                       Design system (Button, Card, Field, Modal/Sheet, Table, Badge, CodeInput, FileDrop, Avatar, AvatarPicker…)
 │  ├─ charts/                   Recharts wrappers (validated palette, legend + tooltip + table view)
 │  ├─ shells/                   Four different app shells + mobile bottom navs
 │  ├─ flows/transaction-flow    Shared details → review/PIN/OTP → receipt wizard
@@ -111,15 +130,21 @@ src/
 ├─ services/
 │  ├─ contracts.ts              The API contract the UI depends on
 │  ├─ http/                     REST implementation
+│  ├─ rpc/                      Browser client for /api/rpc
 │  ├─ mock/                     API handlers (run on the server): schema, store (atomic writes), ledger,
-│  │                            policy (fees/limits/RBAC), seed, analytics, handlers
+│  │                            policy (fees/limits/RBAC), analytics, views, handlers
 │  │  └─ intelligence/          Forecasts, liquidity, churn, benchmarks, anomalies, coverage (pure functions)
 │  └─ providers/                SMS/OTP, KYC, storage, payment gateway, billers, QR codec — dev implementations
-├─ server/ai/                   AI wording: model chain, output guard, templates, daily cache
+├─ server/                      Server-only: rpc (request context, email/SMS outbox), db-store (PostgreSQL),
+│  │                            email (Brevo), sms (sms.net.bd), avatars, documents
+│  └─ ai/                       AI wording: model chain, output guard, templates, daily cache
 ├─ lib/                         auth (access map, session token), validation (zod, shared), utils, i18n
-├─ hooks/                       use-auth, use-api (fetch + tag invalidation), use-hydrated
-├─ config/                      navigation, demo accounts
+├─ hooks/                       use-auth, use-api (fetch + tag invalidation), use-i18n, use-hydrated
+├─ config/                      navigation
 └─ types/domain.ts              View types returned by the API
+
+supabase/                       schema.sql (fresh database), seed.sql (starting accounts), migrations/
+scripts/                        seed-synthetic.mjs, check-i18n.mjs, check-intelligence.mjs, check-ai.mjs
 ```
 
 ---
@@ -151,7 +176,7 @@ Each role has its own navigation and information architecture:
 | Cash Out | Personal at verified agent | 1.85% (agent earns 0.40%) | ৳50–25,000, agent must have cash |
 | Mobile Recharge | Personal | Free | ৳20–1,000 |
 | Bill Payment | Personal | ৳5 | ৳10–50,000 |
-| Merchant Payment | Personal → **verified** merchant | Free for customer; merchant pays 1.5% | ৳1–50,000 |
+| Merchant Payment | Personal → **verified** merchant | Customer pays a 1.5% fee on top; the merchant receives the full amount | ৳1–50,000 |
 | Add Money | Personal | Free (dev gateway declines amounts ending in .13) | ৳100–50,000 |
 | Cash In / Cash Out / Recharge / Customer Payment | **Verified** agent | Agent earns 0.20% / 0.40% / 2.5% / 0.5% (৳2–20) | per policy |
 | Refund | **Verified** merchant | — | ≤ remaining amount, within 30 days |
@@ -171,9 +196,10 @@ Each role has its own navigation and information architecture:
 | Session management | session table, *remember me* (30 days vs 12 hours), device list, revoke one, log out everywhere, login history |
 | Protected API routes | every handler calls `requireCaller(db, roles)` |
 | Input validation | shared zod schemas (`lib/validation.ts`) validated on the client **and** again in the API |
-| Rate limiting | fixed-window limiter for login, OTP sends, password reset and uploads; PIN/password lockouts |
+| Rate limiting | fixed-window limiter for login, OTP sends (per number, per email and per network at sign-up), password reset, uploads and AI calls; PIN/password lockouts |
+| OTP delivery | codes go only to the owner of the destination phone (the customer for agent cash out); never texted or emailed to demo accounts; sent after the request commits; logs never contain codes, numbers or addresses |
 | CSRF | http client sends `X-CSRF-Token` (double-submit cookie) on every mutating request; cookie is `SameSite=Lax` |
-| Upload validation | extension, MIME, ≤5 MB and **magic bytes** checked; SHA-256 recorded; stored privately |
+| Upload validation | extension, MIME, ≤5 MB and **magic bytes** checked; SHA-256 recorded; files kept in `document_files` and shown only to admins (`GET /api/documents/:id`, every view audit-logged) |
 | Profile pictures | JPG/PNG/WebP ≤ 2 MB, magic bytes checked; stored in `avatars`, served by `GET /api/avatars/:id` to signed-in users only (random ids, `nosniff`, sandboxed CSP) |
 | Audit logging | append-only `audit_logs` for sign-ins, money movement, admin actions |
 | Transaction authorisation | PIN on every operation, OTP step-up, idempotency key against double submits |
@@ -212,7 +238,7 @@ Request and response shapes are the TypeScript types in `src/services/contracts.
 
 ### Data model the backend should provide
 
-`services/mock/schema.ts` mirrors the relational schema. Tables: `users` (role enum `PERSONAL | AGENT | MERCHANT | ADMIN`), `personal_profiles`, `agent_profiles`, `merchant_profiles`, `merchant_businesses`, `account_status_history`, `verification_documents`, `wallets` (with an optimistic-lock `version`), `transactions` + `transaction_parties`, `commissions`, `settlements` (settlement transactions), `notifications`, `otp_codes` (hashed codes bound to a context), `sessions`, `audit_logs` (append-only), `disputes`, `payment_requests`, `rate_limits` and `idempotency_keys`.
+`supabase/schema.sql` is the relational schema; `services/mock/schema.ts` mirrors it. Tables: `users` (role enum `PERSONAL | AGENT | MERCHANT | ADMIN`), `personal_profiles`, `agent_profiles`, `merchant_profiles`, `merchant_businesses`, `account_status_history`, `verification_documents`, `wallets` (with an optimistic-lock `version`), `transactions` (sender, receiver, fees, commission and cash effect; settlements are transactions too), `commissions`, `notifications`, `otp_codes` (hashed codes bound to a context), `sessions`, `audit_logs` (append-only), `disputes`, `payment_requests`, `rate_limits`, `idempotency_keys`, `ai_insights` (cached AI wording), `avatars` and `document_files` (picture and document bytes, kept out of the in-memory snapshot) and `app_state` (the change counter behind the in-memory cache).
 
 ## Languages (English / বাংলা)
 
@@ -308,6 +334,15 @@ After running the migration and the seed, with the AI keys set:
    - At the top: three recommendations, each chosen by code and worded by the model.
 5. **বাংলা and resilience.** Switch the language toggle to বাংলা: the screens and the AI text come back in Bengali. Then remove the AI keys from `.env.local` and restart. Every number stays the same, and the text switches to the *Automatic summary* templates.
 
+## Profile pictures
+
+* **Where:** an optional *Profile picture* on the first step of every sign-up form, and *Change photo* / *Remove* on Profile.
+* **Rules:** JPG, PNG or WebP, at most 2 MB. Checked in the browser for quick feedback, then again on the server (type, size and magic bytes).
+* **Storage:** pictures go through the normal upload (`POST /uploads`, purpose `AVATAR`) into the `avatars` table. `users.avatar_id` points at the current one; replaced pictures are deleted, and sign-up uploads nobody claimed expire after a day.
+* **Serving:** `GET /api/avatars/:id`, for signed-in users with an active session only. Ids are random and change with every new picture, so responses are cached privately.
+* **Shown in:** the app header and account menu, profile, transaction lists (both parties in the admin view), transaction details, the payment review step, recent recipients, and the admin user list and details. Without a picture, initials are shown.
+* Needs `supabase/migrations/20261006_profile_pictures.sql`. Until it runs, uploading explains that and everything else works as before.
+
 ## SMS
 
 OTP codes go out by text message through **sms.net.bd** (`src/server/sms.ts`) when `SMS_NET_BD_API_KEY` is set. Otherwise the development SMS provider logs them and shows them on screen.
@@ -340,6 +375,21 @@ OTP codes and account emails go out through **Brevo SMTP** (`src/server/email.ts
 | `APP_URL` | Optional public URL for links in emails (defaults to the request's origin) |
 | `OTP_SHOW_CODES` | `true` (default) shows codes on screen; `false` in production |
 
+## Deployment (Vercel)
+
+Production runs on Vercel as the project **`kosh-bd`** → https://kosh-bd.vercel.app.
+
+```bash
+vercel link --project kosh-bd    # once per checkout
+vercel deploy --prod             # build and deploy the current folder
+```
+
+* `vercel.json` sets the Next.js framework preset and pins functions to **`sin1`** (Singapore), next to the Supabase database in `ap-southeast-1`. Every API call loads from the database, so the region matters.
+* Environment variables are set on the project for Production: the same names as `.env.local` (database, `AUTH_JWT_SECRET`, AI, Brevo, SMS). Edit them with `vercel env` or in the dashboard, then redeploy. `NEXT_PUBLIC_*` values are baked in at build time.
+* Queued emails and texts are sent inside Next's `after()`, so the serverless function stays alive until they're delivered.
+* The project isn't connected to GitHub: pushing doesn't redeploy. Run `vercel deploy --prod` (or connect it with `vercel git connect`).
+* **Network note:** some Bangladeshi ISPs block a few Vercel addresses. The first project (`kosh-mfs.vercel.app`, address `64.29.17.3`) can't be reached from some local networks, which is why production moved to `kosh-bd` (address `64.29.17.195`). If a URL hangs on one network, try another network or a VPN.
+
 ## Design notes
 
 * **One brand, four accents.** Shells set CSS variables (`--accent-*`): emerald (Personal), amber on a dark console (Agent), indigo (Merchant), sky (Admin). Shared components read `accent-*` tokens, so they pick up the role colour automatically.
@@ -350,4 +400,8 @@ OTP codes and account emails go out through **Brevo SMTP** (`src/server/email.ts
 ## Limitations
 
 * Camera QR scanning belongs in the native app. On the web, the customer pastes the QR content (copyable from the merchant screen).
-* Document previews show a placeholder: the development storage provider keeps metadata and a hash only.
+* Documents uploaded before `20261007_document_files.sql` was run have metadata only; the admin viewer says the file wasn't kept.
+* On Vercel, request bodies are limited to about 4.5 MB, so verification documents between 4.5 and 5 MB fail to upload there. Profile pictures (2 MB) are fine.
+* The server keeps the whole database in memory and reloads it only when the change counter (`app_state.version`, `20261006_change_counter.sql`) moves. On serverless each instance has its own copy, so the first request on a fresh instance loads everything. Keep demo data small (`supabase/synthetic-data.sql` or `seed-synthetic.mjs`).
+* The development KYC provider keeps selfie checks in memory. On serverless, a check started on one instance may be missing on another; the account is then created as pending verification instead of instantly verified.
+* sms.net.bd trial accounts can only text their own registered number until the first recharge, and each SMS costs credit.
