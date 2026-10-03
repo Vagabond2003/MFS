@@ -11,14 +11,18 @@ A Mobile Financial Services web app with three isolated customer roles — **Per
 Requirements: Node.js 20.9+ (tested on Node 25), npm, a Supabase project.
 
 1. In the Supabase **SQL Editor**, run `supabase/schema.sql`, then `supabase/seed.sql` (once each — re-running `schema.sql` deletes all data).
-   A database created before a change in `supabase/migrations/` needs that file run once instead (e.g. `20261003_user_language.sql` adds each user's interface language).
+   A database created before a change in `supabase/migrations/` needs those files run once instead, in name order — they are safe to re-run:
+   - `20261003_user_language.sql` — each user's interface language
+   - `20261004_ai_intelligence.sql` — districts on agents/merchants and the `ai_insights` cache (needed for the [intelligence features](#merchant--agent-intelligence))
 2. `npm install`
 3. `cp .env.example .env.local`, then fill in:
    - `DATABASE_URL` — Supabase → **Connect** → **Direct** → Method **Transaction pooler** (port 6543), with your database password.
    - `AUTH_JWT_SECRET` — any random string of 32+ characters.
-4. `npm run dev` and open http://localhost:3000.
+   - *Optional:* `GEMINI_API_KEY` and/or `GROQ_API_KEY` for AI-written insight text (see [AI configuration](#ai-configuration)). Without them every insight still works with template text.
+4. *Optional, for the intelligence demo:* `node --env-file=.env.local scripts/seed-synthetic.mjs` — 90 days of synthetic history (see [Synthetic data](#synthetic-data)).
+5. `npm run dev` and open http://localhost:3000.
 
-Other scripts: `npm run build`, `npm start`, `npm run lint`, `npm run typecheck`.
+Other scripts: `npm run build`, `npm start`, `npm run lint`, `npm run typecheck`. Checks without a test framework: `node scripts/check-i18n.mjs`, `node scripts/check-intelligence.mjs`, `node scripts/check-ai.mjs`.
 
 ### Starting accounts (from `supabase/seed.sql`)
 
@@ -79,9 +83,9 @@ src/
 │  ├─ unauthorized/             403
 │  └─ (app)/                    Authenticated area (AppFrame)
 │     ├─ dashboard/personal/*   send, cash-out, recharge, pay-bill, merchant-pay, add-money
-│     ├─ dashboard/agent/*      cash-in, cash-out, recharge, customer-payment, commission, settlement, verification
-│     ├─ dashboard/merchant/*   receive, qr, sales, refunds, settlement, business
-│     ├─ admin/*                users, verifications, transactions, disputes, audit-logs
+│     ├─ dashboard/agent/*      cash-in, cash-out, recharge, customer-payment, liquidity, commission, settlement, verification
+│     ├─ dashboard/merchant/*   receive, qr, sales, insights, refunds, settlement, business
+│     ├─ admin/*                intelligence, users, verifications, transactions, disputes, audit-logs
 │     └─ transactions, notifications, profile   (shared, rendered in the caller's shell)
 ├─ features/                    Screens, grouped by role/domain
 ├─ components/
@@ -96,8 +100,10 @@ src/
 │  ├─ http/                     REST implementation
 │  ├─ mock/                     API handlers (run on the server): schema, store (atomic writes), ledger,
 │  │                            policy (fees/limits/RBAC), seed, analytics, handlers
+│  │  └─ intelligence/          Forecasts, liquidity, churn, benchmarks, anomalies, coverage (pure functions)
 │  └─ providers/                SMS/OTP, KYC, storage, payment gateway, billers, QR codec — dev implementations
-├─ lib/                         auth (access map, session token), validation (zod, shared), utils
+├─ server/ai/                   AI wording: model chain, output guard, templates, daily cache
+├─ lib/                         auth (access map, session token), validation (zod, shared), utils, i18n
 ├─ hooks/                       use-auth, use-api (fetch + tag invalidation), use-hydrated
 ├─ config/                      navigation, demo accounts
 └─ types/domain.ts              View types returned by the API
@@ -202,6 +208,91 @@ Request and response shapes are the TypeScript types in `src/services/contracts.
 * **Server text** (API errors, validation messages, notifications, transaction descriptions) stays English in the database and API; the API route translates errors for the caller, and stored text is translated when shown. Messages with values (amounts, names, IDs) match the patterns in `dict/bn-patterns.ts`.
 * **Coverage check:** `node scripts/check-i18n.mjs` lists any user-facing English string without a Bengali entry. Run it after adding UI text.
 * Amounts, phone numbers and IDs keep Latin digits; dates use Bengali month and day names.
+
+## Merchant & agent intelligence
+
+Forecasts, benchmarks and risk signals for agents, merchants and the operations team (hackathon Track 05).
+
+**Numbers come from code, words come from the LLM.** Every forecast, score, benchmark and flag is computed by deterministic TypeScript in `src/services/mock/intelligence/`. A language model only turns those figures into a sentence or two. Every screen still works, with template text, when no model is configured or none answers.
+
+| Who | Where | What |
+|---|---|---|
+| Agent | Dashboard card · **Liquidity planner** (`/dashboard/agent/liquidity`) | 7-day cash and e-money float projection, shortfall warning, suggested float top-up / extra cash / settlement, day-by-day table, 28-day performance and anonymous standing among agents |
+| Merchant | **Insights** (`/dashboard/merchant/insights`) | 7-day sales forecast (dashed continuation of the actual line, likely-range band), busiest hours and day, payment mix, comparison with similar merchants, 3 recommendations |
+| Admin | **Intelligence** (`/admin/intelligence`) | Merchant churn risk with reasons, agent patterns to review (near-limit cash-outs, repeated customers, off-hours activity, volume spikes), rising performers, service gaps, district coverage ranking |
+
+### How the figures are made
+
+* **Forecasts** (`forecast.ts`): weekday seasonality, a damped trend and a salary-day (1st–5th of the month) uplift, learned from up to 8 weeks of history; an ~80% band from the residuals. Days and hours are bucketed in Asia/Dhaka.
+* **Liquidity** (`liquidity.ts`): the agent's expected cash-out, cash-in and other cash collected each day, applied to today's real wallet. A day is at risk when a busy day (upper band) would need more than the projected opening cash or float. Suggestions are rounded up to ৳1,000.
+* **Churn** (`churn.ts`): a 0–100 score with fixed weights: days since last payment 35, payment-count drop 25, value drop 20, failure rate 10, refund rate 10. Every score lists its factors.
+* **Benchmarks** (`benchmark.ts`): last 30 days against merchants with the same category and district (falls back to category, then all merchants). Only medians and percentiles are returned; no peer is ever identified.
+* **Agent patterns** (`anomalies.ts`): each measure is compared with peers and with the agent's own previous 8 weeks. Flags are patterns to review, not verdicts.
+* **Coverage** (`coverage.ts`): distinct customers served per agent and per merchant by district over 30 days, ranked against the network median, with the extra agents needed to reach it.
+
+### How the words are made (`src/server/ai/`)
+
+* `explain(kind, facts, lang)` tries `GEMINI_MODEL` → `GEMINI_FALLBACK_MODEL` → `GROQ_MODEL` within one 18-second budget. Each attempt has its own timeout, and time is held back for the next model. Rate-limited or slow models get a short cool-down. If nothing usable comes back, a deterministic English/Bengali template answers.
+* **Privacy:** models only receive aggregated, pre-formatted figures plus category and district. Never names, phone numbers, NIDs, addresses, agent codes or transaction IDs. `scripts/check-ai.mjs` checks this against the whole dataset.
+* **Guard:** a reply is used only if it is JSON of the expected shape (zod), in the requested language, and every number in it appears in the facts (Bengali digits count the same). Otherwise the next model is tried.
+* **No path to money:** the model has no tools and its output is display text. Suggested actions and amounts come from code, and links only open the normal screens, where the user still confirms with a PIN.
+* **Cache and limits:** wording is cached per user, insight, language and input hash for the Dhaka day (`ai_insights`). Model calls are limited to 30 per user per hour through `rate_limits`, and run outside any database transaction.
+* **Labelling:** the UI marks model text as **AI-generated** with when it was written. Template text is labelled *Automatic summary*. Text follows the user's saved language.
+
+### AI configuration
+
+Server-only variables in `.env.local` (never `NEXT_PUBLIC_`). All are optional.
+
+| Variable | Default in `.env.example` | Notes |
+|---|---|---|
+| `GEMINI_API_KEY` | — | Google AI Studio key. Used for both Gemini models. |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | First choice. JSON mode, 8 s timeout. |
+| `GEMINI_FALLBACK_MODEL` | `gemma-4-31b-it` | Second choice. No JSON mode; often slow, so 8 s timeout. |
+| `GROQ_API_KEY` | — | Groq key. |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | Third choice (OpenAI-compatible API). |
+
+To try the chain from the command line: `node --env-file=.env.local scripts/check-ai.mjs --live` (add `--lang=bn` for Bengali). It prints the facts sent and the text that came back, never keys.
+
+### Synthetic data
+
+```bash
+node --env-file=.env.local scripts/seed-synthetic.mjs           # seed (needs 20261004_ai_intelligence.sql)
+node --env-file=.env.local scripts/seed-synthetic.mjs --reset   # remove it again
+node --env-file=.env.local scripts/seed-synthetic.mjs --dry-run # generate and validate only
+```
+
+* About 300 customers, 25 agents and 40 merchants across 8 districts, with 90 days of history ending today. That is about 7,500 transactions.
+* Every id starts with `syn_` and every synthetic user is `is_demo`. `--reset` deletes only those rows.
+* The demo agent and merchant (Sabbir_Tele, Nafiztong) get a district (Dhaka) and history on top of their real balances. `--reset` reverses the history's effect.
+* Fees, commissions and limits come from `policy.ts`, and postings follow the ledger's rules, so every wallet stays whole-poisha and non-negative.
+* The generator is deterministic (fixed seed, days anchored to the run date).
+* **Planted patterns:**
+  - weekly seasonality and salary-day cash-out spikes
+  - 5 declining merchants
+  - an agent with near-limit cash-outs by repeat customers (Chattogram)
+  - an agent with off-hours bursts (Narayanganj)
+  - 2 fast-growing agents (Sylhet, Khulna)
+  - an overloaded, underserved district (Gazipur)
+* The seed prints one account per pattern. Every synthetic account uses password `demo@1234` and PIN `24680`.
+
+### Demo script (5 minutes)
+
+After running the migration and the seed, with the AI keys set:
+
+1. **Admin → Intelligence** (`admin@example.com`). The churn table opens with the declining merchants and their reasons (e.g. "No payment for 8 days", "Payments down 100%"). The summary above it carries the **AI-generated** label and the time it was written.
+2. **Same page, further down.**
+   - *Patterns to review* shows the Chattogram agent's near-limit cash-outs and the Narayanganj agent's off-hours activity, each compared with peers.
+   - *Rising performers* and *Service gaps* follow.
+   - *District coverage* ranks **Gazipur** most underserved, with the extra agents it needs.
+3. **Agent → Liquidity planner.** Sign in as the Gazipur agent printed by the seed (*Agent with a cash shortfall*).
+   - The dashboard card warns that cash may run short in the coming days and suggests how much cash to bring.
+   - *Open planner* shows the 14-day history and 7-day projection with the at-risk day in red, the day-by-day table, and the salary-day uplift.
+   - Sabbir_Tele (`01814557644`) shows the same page for an agent with healthy cash.
+4. **Merchant → Insights** as Nafiztong (`01773519331`).
+   - The sales forecast continues the actual line as a dashed line inside its likely-range band.
+   - Below it: busiest hours, the payment mix, and the comparison with similar merchants in Dhaka (medians only, no names).
+   - At the top: three recommendations, each chosen by code and worded by the model.
+5. **বাংলা and resilience.** Switch the language toggle to বাংলা: the screens and the AI text come back in Bengali. Then remove the AI keys from `.env.local` and restart. Every number stays the same, and the text switches to the *Automatic summary* templates.
 
 ## Design notes
 

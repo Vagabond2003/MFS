@@ -841,6 +841,22 @@ async function insert(tx, table, records) {
 
 /* ───────────── Seed / reset ───────────── */
 
+/** Synthetic accounts that show each planted pattern (they share the demo password and PIN). */
+function printAccountsToTry(result) {
+  const S = result.specials;
+  const user = (id) => result.out.users.find((u) => u.id === id);
+  const district = (id) => result.out.agentProfiles.find((a) => a.userId === id)?.district ?? result.out.merchantBusinesses.find((b) => b.userId === id)?.district;
+  const rows = [
+    ["Agent with a cash shortfall", S.serviceGap],
+    ["Agent with near-limit cash-outs", S.nearLimit],
+    ["Agent with off-hours bursts", S.offHours],
+    ["Fast-growing agent", S.rising[0]],
+    ["Declining merchant", S.decliners[0]],
+  ].filter(([, id]) => user(id));
+  console.log("Accounts to try (password demo@1234, PIN 24680):");
+  for (const [label, id] of rows) console.log(`  ${label.padEnd(33)} ${user(id).phone}  ${user(id).name} (${district(id)})`);
+}
+
 async function seed() {
   const base = await baseState();
   if (!OFFLINE) {
@@ -874,6 +890,7 @@ async function seed() {
     process.exit(1);
   }
   console.log("Validation passed: balances are whole poisha and never negative; commission rows match.");
+  printAccountsToTry(result);
 
   if (EMIT) {
     // Include the demo agent/merchant (with their end balances) so the dataset is self-contained.
