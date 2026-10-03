@@ -19,7 +19,7 @@ export const ai: Record<string, string> = {
   "Rajshahi": "রাজশাহী",
   "Khulna": "খুলনা",
   "Cumilla": "কুমিল্লা",
-  "Not a merchant": "মার্চেন্ট অ্যাকাউন্ট নয়",
+  "Business profile not found.": "ব্যবসার প্রোফাইল পাওয়া যায়নি।",
 
   /* ── Agent: liquidity ── */
   "cash": "নগদ টাকা",

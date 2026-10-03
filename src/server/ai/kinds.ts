@@ -198,6 +198,9 @@ export interface BenchmarkFacts {
   metrics: { metric: string; yours: string; peer_median: string; ahead_of_pct_of_peers: number }[];
 }
 
+/** Fewer peers than this and a comparison says nothing. */
+const MIN_PEERS = 3;
+
 const METRIC_LABEL = {
   revenue: msg("sales (30 days)"),
   avgTicket: msg("average payment"),
@@ -217,7 +220,7 @@ export function benchmarkFacts(b: MerchantBenchmark): BenchmarkFacts {
 }
 
 function benchmarkTemplate(f: BenchmarkFacts, t: Translate): TextOutput {
-  if (!f.metrics.length || !f.peer_merchants) return { text: t("There aren't enough similar merchants yet for a comparison.") };
+  if (f.peer_merchants < MIN_PEERS || !f.metrics.length) return { text: t("There aren't enough similar merchants yet for a comparison.") };
   const sorted = [...f.metrics].sort((a, b) => b.ahead_of_pct_of_peers - a.ahead_of_pct_of_peers);
   const best = sorted[0];
   const worst = sorted[sorted.length - 1];
@@ -407,6 +410,8 @@ interface KindDef<F, O> {
   output: "text" | "recommendations";
   task: string;
   template: (facts: F, t: Translate, lang: Lang) => O;
+  /** Too little to say: the template answers without asking a model. */
+  nothingToSay?: (facts: F) => boolean;
 }
 const text = <F,>(def: Omit<KindDef<F, TextOutput>, "output">): KindDef<F, TextOutput> => ({ ...def, output: "text" });
 
@@ -430,12 +435,14 @@ export const KINDS = {
     audience: "merchant",
     task: "Write one or two short sentences on where the merchant does better and worse than similar merchants.",
     template: benchmarkTemplate,
+    nothingToSay: (f) => f.peer_merchants < MIN_PEERS || !f.metrics.length,
   }),
   "merchant.recommendations": {
     audience: "merchant",
     output: "recommendations",
     task: "Write exactly one recommendation per signal, in the same order: a short title (at most 8 words) and a 1–2 sentence detail that uses that signal's figures.",
     template: recommendationsTemplate,
+    nothingToSay: (f) => !f.signals.length,
   } satisfies KindDef<RecommendationFacts, RecommendationsOutput>,
   "admin.churn": text<ChurnFacts>({
     audience: "admin",
@@ -451,6 +458,7 @@ export const KINDS = {
     audience: "admin",
     task: "Write one or two short sentences for the operations team on which district is most underserved and how many agents it needs.",
     template: coverageTemplate,
+    nothingToSay: (f) => !f.most_underserved,
   }),
 } as const;
 

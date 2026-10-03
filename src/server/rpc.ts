@@ -5,6 +5,7 @@ import { ApiError, toApiError } from "@/services/errors";
 import { admin, dev } from "@/services/mock/handlers/admin";
 import { agent, lookup, merchant, notifications, personal, profile, security, transactions, wallet } from "@/services/mock/handlers/account";
 import { auth, registration, uploads } from "@/services/mock/handlers/identity";
+import { insights } from "@/services/mock/handlers/insights";
 import { operations } from "@/services/mock/handlers/operations";
 import { setRequestEnvProvider } from "@/services/mock/runtime";
 import { setStoreBackend } from "@/services/mock/store";
@@ -34,6 +35,7 @@ const GROUPS: Record<string, object> = {
   personal,
   agent,
   merchant,
+  insights,
   lookup,
   admin,
   dev,

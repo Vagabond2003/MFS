@@ -1,4 +1,5 @@
 import type { BenchmarkMetric, BusinessCategory, MerchantBenchmark } from "@/types/domain";
+import { ApiError } from "../../errors";
 import type { DbState } from "../schema";
 import { DAY_MS, median, percentileRank, round3, succeeded, ts, txnsByUser } from "./common";
 
@@ -47,7 +48,7 @@ function merchantMetrics(db: DbState, merchantUserId: string, now: number): Metr
 
 export function merchantBenchmark(db: DbState, merchantUserId: string, now = Date.now()): MerchantBenchmark {
   const own = db.merchantBusinesses.find((b) => b.userId === merchantUserId);
-  if (!own) throw new Error("Not a merchant");
+  if (!own) throw new ApiError("NOT_FOUND", "Business profile not found.");
   const category = own.category as BusinessCategory;
   const district = own.district ?? null;
 

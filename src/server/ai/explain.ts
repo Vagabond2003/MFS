@@ -35,7 +35,7 @@ const AUDIENCE = {
 } as const;
 
 function systemPrompt(audience: keyof typeof AUDIENCE, lang: Lang) {
-  const language = lang === "bn" ? "Bengali (বাংলা), in plain everyday words, with Bengali digits" : "plain English";
+  const language = lang === "bn" ? "Bengali (বাংলা), in plain everyday words" : "plain English";
   return [
     "You write short insight notes for Kosh, a mobile financial service (mobile wallet) in Bangladesh.",
     `The reader is ${AUDIENCE[audience]}.`,
@@ -45,7 +45,7 @@ function systemPrompt(audience: keyof typeof AUDIENCE, lang: Lang) {
     "- The only money actions you may suggest are the ones listed in the facts. Never ask anyone to send, transfer or share money, PINs or codes.",
     "- Write natural sentences for a busy reader. Never repeat JSON key names or topic codes.",
     "- Be specific and practical. No greetings, no markdown, no links, no emojis.",
-    `- Write in ${language}. Amounts keep the ৳ sign.`,
+    `- Write in ${language}. Keep every number in Latin digits exactly as given, amounts with the ৳ sign (e.g. ৳15,000, 37%).`,
     "- Reply with one JSON object only, exactly in the requested shape.",
   ].join("\n");
 }
@@ -73,8 +73,9 @@ export async function explain<K extends InsightKind>(
     model: null,
   });
 
+  const nothingToSay = (def as { nothingToSay?: (f: FactsOf<K>) => boolean }).nothingToSay;
+  if (nothingToSay?.(facts)) return template();
   const expectedItems = def.output === "recommendations" ? (facts as RecommendationFacts).signals.length : undefined;
-  if (expectedItems === 0) return template();
 
   const models = opts.models ?? configuredModels();
   const system = systemPrompt(def.audience, lang);

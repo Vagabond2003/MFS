@@ -816,3 +816,50 @@ export interface AiText extends AiMeta {
 export interface AiRecommendations extends AiMeta {
   items: { title: string; detail: string }[];
 }
+
+/* ───────────── Insights API views (figures + wording) ───────────── */
+
+export type MerchantSignalCode = "WIN_BACK" | "REDUCE_FAILURES" | "MONTH_START" | "BUSY_DAY_AHEAD" | "PROMOTE_QR" | "BUILD_LOYALTY" | "PEAK_HOURS";
+
+export interface AgentLiquidityView extends AgentLiquidity {
+  ai: AiText;
+}
+
+export interface AgentPerformanceView extends AgentPerformance {
+  ai: AiText;
+}
+
+export interface MerchantDemandView extends MerchantDemand {
+  ai: AiText;
+}
+
+export interface MerchantBenchmarkView extends MerchantBenchmark {
+  ai: AiText;
+}
+
+export interface MerchantRecommendationsView {
+  asOf: string;
+  /** What each recommendation is about, in the same order as `ai.items`. */
+  topics: MerchantSignalCode[];
+  ai: AiRecommendations;
+}
+
+export interface ChurnRiskView {
+  asOf: string;
+  /** Highest risk first. */
+  merchants: MerchantChurnRisk[];
+  ai: AiText;
+}
+
+export interface AgentIntelligenceView {
+  asOf: string;
+  agents: AgentIntelligence[];
+  ai: AiText;
+}
+
+export interface LocationCoverageView {
+  asOf: string;
+  /** Most underserved first. */
+  districts: DistrictCoverage[];
+  ai: AiText;
+}

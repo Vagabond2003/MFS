@@ -1,5 +1,13 @@
 import type {
   AdminStats,
+  AgentIntelligenceView,
+  AgentLiquidityView,
+  AgentPerformanceView,
+  ChurnRiskView,
+  LocationCoverageView,
+  MerchantBenchmarkView,
+  MerchantDemandView,
+  MerchantRecommendationsView,
   AdminUserDetail,
   AdminUserRow,
   AgentDashboard,
@@ -161,6 +169,30 @@ export interface MerchantApi {
   settlements(): Promise<SettlementView[]>;
 }
 
+/**
+ * Merchant & agent intelligence. Every figure is computed on the server; `ai`
+ * holds the wording (from a language model, or a fixed template when none
+ * answers). Callers only ever see their own data, except admins.
+ */
+export interface InsightsApi {
+  /** Agent: 7-day cash and e-money float projection with top-up suggestions. */
+  liquidityForecast(): Promise<AgentLiquidityView>;
+  /** Agent: last 28 days vs the 28 before, and standing among agents. */
+  performance(): Promise<AgentPerformanceView>;
+  /** Merchant: 7-day sales forecast, busiest hours and days. */
+  demandForecast(): Promise<MerchantDemandView>;
+  /** Merchant: own metrics against anonymous peer medians. */
+  benchmark(): Promise<MerchantBenchmarkView>;
+  /** Merchant: three recommendations chosen from the figures above. */
+  recommendations(): Promise<MerchantRecommendationsView>;
+  /** Admin: merchants ranked by churn risk, with the reasons. */
+  churnRisk(): Promise<ChurnRiskView>;
+  /** Admin: agent anomaly flags, rising performers and service gaps. */
+  agentIntelligence(): Promise<AgentIntelligenceView>;
+  /** Admin: districts ranked by how underserved they are. */
+  locationCoverage(): Promise<LocationCoverageView>;
+}
+
 export interface LookupApi {
   billers(): Promise<Biller[]>;
   fetchBill(billerId: string, accountNumber: string): Promise<BillDetails>;
@@ -202,6 +234,7 @@ export interface ApiClient {
   personal: PersonalApi;
   agent: AgentApi;
   merchant: MerchantApi;
+  insights: InsightsApi;
   lookup: LookupApi;
   admin: AdminApi;
   dev: DevToolsApi;

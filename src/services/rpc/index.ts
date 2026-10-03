@@ -64,6 +64,7 @@ export const rpcApi: ApiClient = {
   personal: group("personal"),
   agent: group("agent"),
   merchant: group("merchant"),
+  insights: group("insights"),
   lookup: group("lookup"),
   admin: group("admin"),
   dev: group("dev"),

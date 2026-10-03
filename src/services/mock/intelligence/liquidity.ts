@@ -160,9 +160,11 @@ export function agentLiquidity(db: DbState, agentId: string, now = Date.now()): 
   const cashSlack = Math.min(...projected.map((x) => x.day.openingCash - x.busyCashOut));
   const bringCash = Math.max(0, topUp - cashSlack);
   if (bringCash > 0) suggestions.push({ kind: "ADD_CASH", amount: ceilTo(bringCash), byDate: firstDate((d) => d.cashAtRisk || d.floatAtRisk) });
+  // Surplus e-money beyond a working float (3 busy days, at least ৳25,000) can go to the bank.
   const maxFloatNeed = Math.max(0, ...projected.map((x) => x.busyFloatNeed));
-  const surplus = floorTo(Math.min(...days.map((d) => d.openingFloat)) - 2 * maxFloatNeed);
-  if (!topUp && maxFloatNeed > 0 && surplus >= 500_000) suggestions.push({ kind: "SETTLE_TO_BANK", amount: surplus, byDate: days[days.length - 1].date });
+  const workingFloat = Math.max(3 * maxFloatNeed, 2_500_000);
+  const surplus = floorTo(Math.min(...days.map((d) => d.openingFloat)) - workingFloat);
+  if (!topUp && maxFloatNeed > 0 && surplus >= 1_000_000) suggestions.push({ kind: "SETTLE_TO_BANK", amount: surplus, byDate: days[days.length - 1].date });
 
   const historyDays = Array.from({ length: 14 }, (_, k) => today - 14 + k);
   const balances = reconstructBalances(db, agentId, historyDays);

@@ -1,4 +1,4 @@
-import type { MerchantBenchmark, MerchantChurnRisk, MerchantDemand } from "@/types/domain";
+import type { MerchantBenchmark, MerchantChurnRisk, MerchantDemand, MerchantSignalCode } from "@/types/domain";
 import { isMonthStart } from "./common";
 
 /**
@@ -7,14 +7,7 @@ import { isMonthStart } from "./common";
  * the top three into wording, and templates do the same when no model answers.
  */
 
-export type MerchantSignalCode =
-  | "WIN_BACK"
-  | "REDUCE_FAILURES"
-  | "MONTH_START"
-  | "BUSY_DAY_AHEAD"
-  | "PROMOTE_QR"
-  | "BUILD_LOYALTY"
-  | "PEAK_HOURS";
+export type { MerchantSignalCode };
 
 export interface MerchantSignal {
   code: MerchantSignalCode;
