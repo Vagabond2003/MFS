@@ -202,6 +202,7 @@ export function PersonalRegistration() {
         <>
           <StepIntro title={t("Almost done")}>{t("Verify your mobile number and accept the terms to create your wallet.")}</StepIntro>
           <PhoneVerification
+            email={v.email}
             phone={v.phone}
             challenge={challenge}
             onChallenge={(c) => {

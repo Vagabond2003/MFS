@@ -22,6 +22,7 @@ Requirements: Node.js 20.9+ (tested on Node 25), npm, a Supabase project.
 3. `cp .env.example .env.local`, then fill in:
    - `DATABASE_URL` — Supabase → **Connect** → **Direct** → Method **Transaction pooler** (port 6543), with your database password.
    - `AUTH_JWT_SECRET` — any random string of 32+ characters.
+   - *Optional:* Brevo SMTP (`BREVO_SMTP_*`) and a verified sender in `EMAIL_FROM` to email OTP codes and account emails (see [Email](#email)).
    - *Optional:* `GEMINI_API_KEY` and/or `GROQ_API_KEY` for AI-written insight text (see [AI configuration](#ai-configuration)). Without them every insight still works with template text.
 4. *Optional, for the intelligence demo:* `node --env-file=.env.local scripts/seed-synthetic.mjs` — 90 days of synthetic history (see [Synthetic data](#synthetic-data)).
 5. `npm run dev` and open http://localhost:3000.
@@ -298,6 +299,24 @@ After running the migration and the seed, with the AI keys set:
    - Below it: busiest hours, the payment mix, and the comparison with similar merchants in Dhaka (medians only, no names).
    - At the top: three recommendations, each chosen by code and worded by the model.
 5. **বাংলা and resilience.** Switch the language toggle to বাংলা: the screens and the AI text come back in Bengali. Then remove the AI keys from `.env.local` and restart. Every number stays the same, and the text switches to the *Automatic summary* templates.
+
+## Email
+
+OTP codes and account emails go out through **Brevo SMTP** (`src/server/email.ts`, `nodemailer`). Without the `BREVO_SMTP_*` variables and `EMAIL_FROM`, email is off and codes are shown on screen by the development SMS provider, as before.
+
+* **OTP codes** are emailed to the owner of the phone number the code is for, when that account has an email. For an agent-assisted cash out that is the customer, not the agent. At sign-up the code goes to the email typed on the form; that is rate-limited to 3 per address and 10 per network every 15 minutes. The code screen shows both the phone and the masked email.
+* **Notifications** of these types are emailed as well as shown in the app: account verification, security alerts (password/PIN changed, lockouts, suspension), money sent, money received, failed payments and settlements. They use the user's language and link back to the right screen.
+* **Delivery:** handlers only queue emails. The RPC layer sends them after the call succeeds, so SMTP never runs inside a database transaction and a rolled-back request sends nothing. Failures are logged without addresses or codes.
+* Reserved domains (`example.com`, `*.test`, `*.invalid`, …) never receive mail, so the demo and synthetic accounts don't either.
+* `OTP_SHOW_CODES=false` stops showing codes on screen. Use it once real delivery is in place.
+
+| Variable | Notes |
+|---|---|
+| `BREVO_SMTP_HOST`, `BREVO_SMTP_PORT` | `smtp-relay.brevo.com`, `587` |
+| `BREVO_SMTP_USER`, `BREVO_SMTP_PASSWORD` | Brevo → SMTP & API → SMTP |
+| `EMAIL_FROM` | e.g. `"Kosh <no-reply@your-domain.com>"`. Must be a verified sender in Brevo. |
+| `APP_URL` | Optional public URL for links in emails (defaults to the request's origin) |
+| `OTP_SHOW_CODES` | `true` (default) shows codes on screen; `false` in production |
 
 ## Design notes
 

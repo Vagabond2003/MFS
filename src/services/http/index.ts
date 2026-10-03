@@ -89,7 +89,7 @@ export const httpApi: ApiClient = {
     resetPassword: (input) => postJson("/auth/password-reset/confirm", input),
   },
   registration: {
-    sendPhoneOtp: (phone) => postJson("/register/otp", { phone }),
+    sendPhoneOtp: (phone, email) => postJson("/register/otp", { phone, email: email || undefined }),
     registerPersonal: (input) => postJson("/register/personal", input),
     registerAgent: (input) => postJson("/register/agent", input),
     registerMerchant: (input) => postJson("/register/merchant", input),

@@ -17,6 +17,12 @@ export const phoneSchema = z
   .transform(normalizePhone)
   .refine((v) => BD_PHONE.test(v), "Enter a valid 11-digit mobile number (01XXXXXXXXX)");
 
+/** Reserved/demo domains (example.com, *.test, …) never receive mail; seed and synthetic accounts use them. */
+const RESERVED_EMAIL = /@(?:[^@]+\.)?(?:example\.(?:com|net|org)|example|test|invalid|localhost)$/i;
+export function isDeliverableEmail(address: string | null | undefined): address is string {
+  return !!address && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address) && !RESERVED_EMAIL.test(address);
+}
+
 export const optionalEmailSchema = z
   .string()
   .trim()

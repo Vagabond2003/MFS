@@ -1,10 +1,11 @@
-import { formatMoney, maskPhone } from "@/lib/utils";
+import { formatMoney, maskEmail, maskPhone } from "@/lib/utils";
+import { isDeliverableEmail } from "@/lib/validation";
 import type { NotificationType, OtpChallenge, OtpPurpose, Role } from "@/types/domain";
 import { ApiError } from "../errors";
 import { providers } from "../providers";
 import { randomDigits, randomId, sha256Hex } from "./crypto";
 import { SECURITY } from "./policy";
-import { requestEnv } from "./runtime";
+import { requestEnv, type OutgoingEmail } from "./runtime";
 import type { DbState, SessionRecord, UserRecord } from "./schema";
 
 /* ───────────── Request metadata (what a server would read from headers) ───────────── */
@@ -143,7 +144,34 @@ export function notify(
     link,
     createdAt: at ?? new Date().toISOString(),
   });
+  if (EMAILED_NOTIFICATIONS.has(type)) {
+    const user = db.users.find((u) => u.id === userId);
+    if (isDeliverableEmail(user?.email)) queueEmail({ kind: "NOTICE", to: user!.email!, lang: user.language ?? "en", name: user.name, title, body, link });
+  }
 }
+
+/** Notifications that are also emailed (to accounts with an email address). */
+const EMAILED_NOTIFICATIONS = new Set<NotificationType>(["ACCOUNT_VERIFICATION", "SECURITY_ALERT", "MONEY_SENT", "MONEY_RECEIVED", "PAYMENT_FAILED", "AGENT_SETTLEMENT"]);
+
+/** Queues an email for after the call succeeds; a no-op outside a server request (scripts, seeds). */
+function queueEmail(email: OutgoingEmail) {
+  try {
+    requestEnv().queueEmail(email);
+  } catch {
+    // no request context
+  }
+}
+
+function emailEnabled() {
+  try {
+    return requestEnv().emailEnabled();
+  } catch {
+    return false;
+  }
+}
+
+/** Show codes on screen (development SMS provider) unless OTP_SHOW_CODES=false. */
+const showCodesOnScreen = () => providers.sms.exposesCodes && process.env.OTP_SHOW_CODES !== "false";
 
 export function money(minor: number) {
   return formatMoney(minor);
@@ -169,7 +197,14 @@ export function consumeRateLimit(db: DbState, key: string, limit: number, window
 
 export async function issueOtp(
   db: DbState,
-  input: { purpose: OtpPurpose; destination: string; userId: string | null; context: string },
+  input: {
+    purpose: OtpPurpose;
+    destination: string;
+    userId: string | null;
+    context: string;
+    /** Registration only: the email typed on the form (there's no account yet). */
+    email?: string | null;
+  },
 ): Promise<OtpChallenge> {
   consumeRateLimit(
     db,
@@ -202,12 +237,22 @@ export async function issueOtp(
     consumedAt: null,
   });
   await providers.sms.send(input.destination, `Your Kosh verification code is ${code}. Do not share it with anyone.`);
+
+  // The code also goes by email to the owner of the destination phone (for an
+  // agent-assisted cash out that is the customer, not the agent) — or, at
+  // registration, to the email typed on the form.
+  const owner = db.users.find((u) => u.phone === input.destination) ?? null;
+  const email = owner ? owner.email : (input.email ?? null);
+  const emailed = isDeliverableEmail(email) && emailEnabled();
+  if (emailed) queueEmail({ kind: "OTP", to: email, lang: owner?.language ?? requestEnv().lang(), name: owner?.name ?? null, code, purpose: input.purpose });
+
+  const phoneMasked = input.destination.includes("@") ? input.destination : maskPhone(input.destination);
   return {
     challengeId: id,
-    destinationMasked: input.destination.includes("@") ? input.destination : maskPhone(input.destination),
+    destinationMasked: emailed ? `${phoneMasked} · ${maskEmail(email)}` : phoneMasked,
     expiresAt: new Date(now + SECURITY.otpTtlSeconds * 1000).toISOString(),
     resendAvailableAt: new Date(now + SECURITY.otpResendSeconds * 1000).toISOString(),
-    devCode: providers.sms.exposesCodes ? code : undefined,
+    devCode: showCodesOnScreen() ? code : undefined,
   };
 }
 

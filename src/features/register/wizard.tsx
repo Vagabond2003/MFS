@@ -17,7 +17,7 @@ import { useHydrated } from "@/hooks/use-hydrated";
 import { useI18n } from "@/hooks/use-i18n";
 import { LANGS, LANG_NAME, type Lang } from "@/lib/i18n/core";
 import { toApiError, type ApiError } from "@/services/errors";
-import { cn, maskPhone } from "@/lib/utils";
+import { cn, maskEmail, maskPhone } from "@/lib/utils";
 import type { OtpChallenge, UploadedFileRef } from "@/types/domain";
 
 export interface WizardStep<T extends FieldValues> {
@@ -160,6 +160,7 @@ export function WizardFrame({
 /** Sends and captures the registration OTP for the phone entered earlier. */
 export function PhoneVerification({
   phone,
+  email,
   challenge,
   onChallenge,
   code,
@@ -167,6 +168,8 @@ export function PhoneVerification({
   error,
 }: {
   phone: string;
+  /** The code is emailed here too, when given. */
+  email?: string | null;
   challenge: OtpChallenge | null;
   onChallenge: (c: OtpChallenge) => void;
   code: string;
@@ -178,7 +181,7 @@ export function PhoneVerification({
   const send = async () => {
     setBusy(true);
     try {
-      onChallenge(await api.registration.sendPhoneOtp(phone));
+      onChallenge(await api.registration.sendPhoneOtp(phone, email || null));
       onCode("");
       toast.success(t("Verification code sent"));
     } catch (e) {
@@ -196,7 +199,14 @@ export function PhoneVerification({
         <div className="text-sm">
           <p className="font-semibold text-slate-900">{t("Verify your mobile number")}</p>
           <p className="text-slate-500">
-            {t("We'll send a 6-digit code to")} <span className="tabular font-medium text-slate-700">{maskPhone(phone)}</span>.
+            {t("We'll send a 6-digit code to")} <span className="tabular font-medium text-slate-700">{maskPhone(phone)}</span>
+            {email ? (
+              <>
+                {" "}
+                {t("and")} <span className="font-medium text-slate-700">{maskEmail(email)}</span>
+              </>
+            ) : null}
+            .
           </p>
         </div>
       </div>

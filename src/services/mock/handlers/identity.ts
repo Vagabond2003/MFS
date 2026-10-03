@@ -3,6 +3,7 @@ import {
   merchantRegistrationSchema,
   passwordSchema,
   personalRegistrationSchema,
+  optionalEmailSchema,
   phoneSchema,
   sniffFileSignature,
   validateUploadFile,
@@ -23,6 +24,7 @@ import {
   createSession,
   issueOtp,
   notify,
+  requestIp,
   resolveCaller,
   setSessionCookie,
 } from "../context";
@@ -311,15 +313,23 @@ function validationError(err: import("zod").ZodError) {
 }
 
 export const registration: RegistrationApi = {
-  async sendPhoneOtp(phoneInput) {
+  async sendPhoneOtp(phoneInput, emailInput) {
     const parsed = phoneSchema.safeParse(phoneInput);
     if (!parsed.success) throw new ApiError("VALIDATION", parsed.error.issues[0].message);
     const phone = parsed.data;
+    // The code also goes to the email typed on the form, if it's a valid address.
+    const emailParsed = optionalEmailSchema.safeParse(emailInput ?? "");
+    const email = emailParsed.success && emailParsed.data ? emailParsed.data : null;
     return write(async (db) => {
       if (db.users.some((u) => u.phone === phone)) {
         throw new ApiError("CONFLICT", "This mobile number is already registered. Try signing in instead.");
       }
-      return issueOtp(db, { purpose: "REGISTRATION", destination: phone, userId: null, context: `register:${phone}` });
+      // Anyone can start a sign-up, so emailing a typed address is limited per address and per network.
+      if (email) {
+        consumeRateLimit(db, `otp-email:${email.toLowerCase()}`, 3, 15 * 60_000);
+        consumeRateLimit(db, `otp-ip:${requestIp()}`, 10, 15 * 60_000);
+      }
+      return issueOtp(db, { purpose: "REGISTRATION", destination: phone, userId: null, context: `register:${phone}`, email });
     });
   },
 

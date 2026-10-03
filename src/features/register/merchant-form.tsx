@@ -249,6 +249,7 @@ export function MerchantRegistration() {
             />
           </div>
           <PhoneVerification
+            email={v.email}
             phone={v.phone}
             challenge={challenge}
             onChallenge={(c) => {

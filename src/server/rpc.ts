@@ -7,9 +7,10 @@ import { agent, lookup, merchant, notifications, personal, profile, security, tr
 import { auth, registration, uploads } from "@/services/mock/handlers/identity";
 import { insights } from "@/services/mock/handlers/insights";
 import { operations } from "@/services/mock/handlers/operations";
-import { setRequestEnvProvider } from "@/services/mock/runtime";
+import { setRequestEnvProvider, type OutgoingEmail } from "@/services/mock/runtime";
 import { setStoreBackend } from "@/services/mock/store";
 import { dbStore } from "./db-store";
+import { deliverEmails, emailConfigured } from "./email";
 
 /**
  * Server-side execution of the API handlers (NEXT_PUBLIC_API_MODE=supabase).
@@ -47,6 +48,10 @@ export interface CallContext {
   ip: string;
   /** Interface language of the request (from the language cookie). */
   lang: Lang;
+  /** Public origin of the request (for links in emails). */
+  origin: string;
+  /** Emails queued by the call; sent after it succeeds. */
+  outbox: OutgoingEmail[];
   /** Set when a handler signs the user in or out. */
   cookie: { action: "set"; claims: SessionClaims; remember: boolean } | { action: "clear" } | null;
 }
@@ -71,6 +76,10 @@ setRequestEnvProvider(() => {
     userAgent: () => ctx.userAgent,
     ip: () => ctx.ip,
     lang: () => ctx.lang,
+    emailEnabled: emailConfigured,
+    queueEmail: (email) => {
+      ctx.outbox.push(email);
+    },
   };
 });
 
@@ -86,7 +95,10 @@ export function resolveMethod(group: unknown, method: unknown): ((...args: unkno
 export async function runCall(ctx: CallContext, fn: (...args: unknown[]) => Promise<unknown>, args: unknown[]) {
   return als.run(ctx, async () => {
     try {
-      return { ok: true as const, data: await fn(...args) };
+      const data = await fn(...args);
+      // Sent after the call (and its transaction) succeeded; delivery problems are logged, not surfaced.
+      if (ctx.outbox.length) void deliverEmails(ctx.outbox.splice(0), ctx.origin);
+      return { ok: true as const, data };
     } catch (err) {
       if (err instanceof ApiError) return { ok: false as const, error: err };
       // Database or programming error: log it, but don't leak internals to the client.

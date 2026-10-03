@@ -1,5 +1,15 @@
 import type { SessionClaims } from "@/lib/auth/session-token";
 import type { Lang } from "@/lib/i18n/core";
+import type { OtpPurpose } from "@/types/domain";
+
+/**
+ * An email a handler wants sent. Queued during the call and sent by the RPC
+ * layer only after the call succeeds, so SMTP never runs inside a database
+ * transaction and a rolled-back request sends nothing.
+ */
+export type OutgoingEmail =
+  | { kind: "OTP"; to: string; lang: Lang; name: string | null; code: string; purpose: OtpPurpose }
+  | { kind: "NOTICE"; to: string; lang: Lang; name: string | null; title: string; body: string; link: string | null };
 
 /**
  * What the API handlers can read from the current request. The RPC route
@@ -16,6 +26,10 @@ export interface RequestEnv {
   ip(): string;
   /** Interface language of the request (language cookie). */
   lang(): Lang;
+  /** Whether an email service is configured (SMTP credentials and a sender). */
+  emailEnabled(): boolean;
+  /** Queues an email to send once the call has succeeded. */
+  queueEmail(email: OutgoingEmail): void;
 }
 
 // Kept on globalThis: dev-server hot reload can re-run this module without

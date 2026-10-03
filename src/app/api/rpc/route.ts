@@ -60,6 +60,8 @@ export async function POST(request: NextRequest) {
     userAgent: request.headers.get("user-agent") ?? "",
     ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "127.0.0.1",
     lang,
+    origin: process.env.APP_URL || request.nextUrl.origin,
+    outbox: [],
     cookie: null,
   };
 

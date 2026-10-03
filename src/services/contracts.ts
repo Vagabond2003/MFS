@@ -84,7 +84,8 @@ export interface AuthApi {
 }
 
 export interface RegistrationApi {
-  sendPhoneOtp(phone: string): Promise<OtpChallenge>;
+  /** Sends the sign-up code to the phone, and to `email` too when given. */
+  sendPhoneOtp(phone: string, email?: string | null): Promise<OtpChallenge>;
   registerPersonal(input: PersonalRegistrationInput): Promise<{ userId: string }>;
   registerAgent(input: AgentRegistrationInput): Promise<{ userId: string; applicationId: string }>;
   registerMerchant(input: MerchantRegistrationInput): Promise<{ userId: string; merchantId: string }>;
