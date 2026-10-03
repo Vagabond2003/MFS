@@ -53,17 +53,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: { code: "NOT_FOUND", message: "Unknown API method." } }, { status: 404 });
   }
 
+  const langCookie = request.cookies.get(LANG_COOKIE)?.value;
+  const lang = isLang(langCookie) ? langCookie : DEFAULT_LANG;
   const ctx: CallContext = {
     claims: await readSessionClaims(request.cookies.get(SESSION_COOKIE)?.value),
     userAgent: request.headers.get("user-agent") ?? "",
     ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "127.0.0.1",
+    lang,
     cookie: null,
   };
 
   const result = await runCall(ctx, fn, args);
   // Error text goes back in the caller's interface language.
-  const langCookie = request.cookies.get(LANG_COOKIE)?.value;
-  const t = translator(isLang(langCookie) ? langCookie : DEFAULT_LANG);
+  const t = translator(lang);
   const res = result.ok
     ? NextResponse.json({ data: result.data ?? null })
     : NextResponse.json(

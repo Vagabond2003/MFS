@@ -158,6 +158,16 @@ export const httpApi: ApiClient = {
     simulateQrPayment: notSupported,
     settlements: () => get("/merchant/settlements"),
   },
+  insights: {
+    liquidityForecast: () => get("/agent/insights/liquidity"),
+    performance: () => get("/agent/insights/performance"),
+    demandForecast: () => get("/merchant/insights/demand"),
+    benchmark: () => get("/merchant/insights/benchmark"),
+    recommendations: () => get("/merchant/insights/recommendations"),
+    churnRisk: () => get("/admin/insights/churn"),
+    agentIntelligence: () => get("/admin/insights/agents"),
+    locationCoverage: () => get("/admin/insights/coverage"),
+  },
   lookup: {
     billers: () => get("/billers"),
     fetchBill: (billerId, accountNumber) => get(`/billers/${encodeURIComponent(billerId)}/bills`, { account: accountNumber }),

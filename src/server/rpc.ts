@@ -1,9 +1,11 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { SessionClaims } from "@/lib/auth/session-token";
+import type { Lang } from "@/lib/i18n/core";
 import { ApiError, toApiError } from "@/services/errors";
 import { admin, dev } from "@/services/mock/handlers/admin";
 import { agent, lookup, merchant, notifications, personal, profile, security, transactions, wallet } from "@/services/mock/handlers/account";
 import { auth, registration, uploads } from "@/services/mock/handlers/identity";
+import { insights } from "@/services/mock/handlers/insights";
 import { operations } from "@/services/mock/handlers/operations";
 import { setRequestEnvProvider } from "@/services/mock/runtime";
 import { setStoreBackend } from "@/services/mock/store";
@@ -33,6 +35,7 @@ const GROUPS: Record<string, object> = {
   personal,
   agent,
   merchant,
+  insights,
   lookup,
   admin,
   dev,
@@ -42,11 +45,15 @@ export interface CallContext {
   claims: SessionClaims | null;
   userAgent: string;
   ip: string;
+  /** Interface language of the request (from the language cookie). */
+  lang: Lang;
   /** Set when a handler signs the user in or out. */
   cookie: { action: "set"; claims: SessionClaims; remember: boolean } | { action: "clear" } | null;
 }
 
-const als = new AsyncLocalStorage<CallContext>();
+// One request context per process, shared by every hot-reloaded copy of this module.
+const g = globalThis as unknown as { __koshCallContext?: AsyncLocalStorage<CallContext> };
+const als = (g.__koshCallContext ??= new AsyncLocalStorage<CallContext>());
 
 setRequestEnvProvider(() => {
   const ctx = als.getStore();
@@ -63,6 +70,7 @@ setRequestEnvProvider(() => {
     },
     userAgent: () => ctx.userAgent,
     ip: () => ctx.ip,
+    lang: () => ctx.lang,
   };
 });
 

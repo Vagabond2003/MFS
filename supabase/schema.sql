@@ -22,7 +22,7 @@
 begin;
 
 drop table if exists
-  idempotency_keys, rate_limits, payment_requests, disputes, audit_logs,
+  ai_insights, idempotency_keys, rate_limits, payment_requests, disputes, audit_logs,
   sessions, otp_codes, notifications, commissions, transactions, wallets,
   verification_documents, account_status_history, merchant_businesses,
   merchant_profiles, agent_profiles, personal_profiles, users
@@ -126,8 +126,11 @@ create table agent_profiles (
   emergency_relation text not null,
   emergency_phone    text not null,
   nid_number         text not null,              -- encrypt at rest
-  review_note        text
+  review_note        text,
+  district           text,                       -- where the outlet operates (coverage analysis)
+  area               text
 );
+create index agent_profiles_district_idx on agent_profiles (district);
 
 create table merchant_profiles (
   user_id         text primary key references users (id) on delete cascade deferrable initially deferred,
@@ -146,8 +149,11 @@ create table merchant_businesses (
   registration_number  text              not null,
   trade_license_number text              not null,
   tax_id               text,
-  settlement_account   text              not null
+  settlement_account   text              not null,
+  district             text,                                 -- where the business operates
+  area                 text
 );
+create index merchant_businesses_district_idx on merchant_businesses (district);
 
 create table account_status_history (
   id        text primary key,
@@ -377,6 +383,20 @@ create table idempotency_keys (
   created_at  timestamptz not null default now()
 );
 
+-- Cache of AI-written explanations. The numbers are computed by the app; this
+-- stores only the wording, keyed by a hash of the exact figures explained.
+create table ai_insights (
+  id          text primary key,
+  user_id     text        not null references users (id) on delete cascade deferrable initially deferred,
+  kind        text        not null,
+  language    text        not null check (language in ('en', 'bn')),
+  input_hash  text        not null,
+  payload     jsonb       not null,
+  model       text        not null,        -- model id, or 'template'
+  created_at  timestamptz not null default now()
+);
+create index ai_insights_lookup_idx on ai_insights (user_id, kind, language, input_hash, created_at desc);
+
 -- ───────────────────────── Row Level Security ─────────────────────────
 -- Enabled with no policies = deny everything to anon/authenticated.
 -- The backend (service_role key) bypasses RLS.
@@ -399,5 +419,6 @@ alter table disputes               enable row level security;
 alter table payment_requests       enable row level security;
 alter table rate_limits            enable row level security;
 alter table idempotency_keys       enable row level security;
+alter table ai_insights            enable row level security;
 
 commit;

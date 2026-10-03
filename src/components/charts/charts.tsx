@@ -8,6 +8,8 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
+  Line,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -93,6 +95,7 @@ export function ChartCard({
   className,
   refreshing,
   action,
+  legend,
 }: {
   title: string;
   description?: string;
@@ -105,6 +108,8 @@ export function ChartCard({
   className?: string;
   refreshing?: boolean;
   action?: React.ReactNode;
+  /** Replaces the automatic legend (e.g. a forecast's line styles and band). */
+  legend?: React.ReactNode;
 }) {
   const { t, lang } = useI18n();
   const [showTable, setShowTable] = useState(false);
@@ -131,7 +136,9 @@ export function ChartCard({
           </button>
         </div>
       </div>
-      {series.length >= 2 && (
+      {legend ? (
+        <div className="px-5 pt-3 sm:px-6">{legend}</div>
+      ) : series.length >= 2 && (
         <ul className="flex flex-wrap gap-x-4 gap-y-1 px-5 pt-3 sm:px-6" aria-label={t("Legend")}>
           {series.map((s, i) => (
             <li key={s.key} className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
@@ -336,5 +343,160 @@ export function DonutCard({
         </div>
       )}
     </Card>
+  );
+}
+
+/* ───────────── Legend keys for custom legends ───────────── */
+
+export function LegendKey({ color, label, shape = "line" }: { color: string; label: string; shape?: "line" | "dashed" | "band" | "dot" }) {
+  return (
+    <li className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+      {shape === "band" ? (
+        <span className="h-2.5 w-3.5 rounded-[3px]" style={{ background: color, opacity: 0.18 }} aria-hidden />
+      ) : shape === "dot" ? (
+        <span className="h-2 w-2 rounded-full" style={{ background: color }} aria-hidden />
+      ) : (
+        <span className="w-3.5 border-t-2" style={{ borderColor: color, borderStyle: shape === "dashed" ? "dashed" : "solid" }} aria-hidden />
+      )}
+      {label}
+    </li>
+  );
+}
+
+/* ───────────── Forecast: actual line, dashed continuation, likely-range band ───────────── */
+
+export interface ForecastRow {
+  label: string;
+  actual?: number;
+  forecast?: number;
+  /** [low, high] — the likely range. */
+  band?: [number, number];
+}
+
+/**
+ * Joins history and forecast into one series: the forecast line starts at the
+ * last actual point so it reads as a dashed continuation.
+ */
+export function forecastRows(actual: { label: string; value: number }[], forecast: { label: string; value: number; low: number; high: number }[]): ForecastRow[] {
+  const rows: ForecastRow[] = actual.map((a) => ({ label: a.label, actual: a.value }));
+  const last = rows[rows.length - 1];
+  if (last && last.actual !== undefined) Object.assign(last, { forecast: last.actual, band: [last.actual, last.actual] });
+  for (const f of forecast) rows.push({ label: f.label, forecast: f.value, band: [f.low, f.high] });
+  return rows;
+}
+
+export function ForecastChart({ rows, format = "money", height = 280, labels }: { rows: ForecastRow[]; format?: ValueFormat; height?: number; labels: { actual: string; forecast: string; range: string } }) {
+  const { lang } = useI18n();
+  const color = SERIES_COLORS[0];
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <ComposedChart data={rows} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
+        <CartesianGrid vertical={false} stroke={GRID} />
+        <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: AXIS }} tick={{ fontSize: 12, fill: INK_MUTED }} interval="preserveStartEnd" minTickGap={14} tickFormatter={(v) => localizeMonths(lang, String(v))} />
+        <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: INK_MUTED }} tickFormatter={(v: number) => fmtAxis(v, format)} width={60} />
+        <Tooltip
+          cursor={{ stroke: "#94a3b8", strokeWidth: 1 }}
+          content={(p) => {
+            const tip = p as TooltipLikeProps;
+            const row = tip.payload?.[0]?.payload as ForecastRow | undefined;
+            if (!tip.active || !row) return null;
+            const isForecast = row.actual === undefined;
+            return (
+              <div className="min-w-40 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-float">
+                <p className="mb-1 text-xs font-medium text-slate-500">{localizeMonths(lang, row.label)}</p>
+                <p className="flex items-center gap-2">
+                  <span className="tabular font-semibold text-slate-900">{fmtFull((isForecast ? row.forecast : row.actual) ?? 0, format)}</span>
+                  <span className="text-xs text-slate-500">{isForecast ? labels.forecast : labels.actual}</span>
+                </p>
+                {isForecast && row.band && (
+                  <p className="tabular mt-0.5 text-xs text-slate-500">
+                    {labels.range}: {fmtFull(row.band[0], format)} – {fmtFull(row.band[1], format)}
+                  </p>
+                )}
+              </div>
+            );
+          }}
+        />
+        <Area dataKey="band" stroke="none" fill={color} fillOpacity={0.14} isAnimationActive={false} activeDot={false} />
+        <Line dataKey="actual" stroke={color} strokeWidth={2} dot={false} activeDot={{ r: 4.5, strokeWidth: 2, stroke: "#fff" }} isAnimationActive={false} />
+        <Line dataKey="forecast" stroke={color} strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 4.5, strokeWidth: 2, stroke: "#fff" }} isAnimationActive={false} />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+/* ───────────── Balance projection: history solid, projection dashed, at-risk days marked ───────────── */
+
+export interface ProjectionRow {
+  label: string;
+  [key: string]: string | number | boolean | undefined;
+}
+
+export function ProjectionChart({
+  rows,
+  lines,
+  height = 280,
+}: {
+  rows: ProjectionRow[];
+  /** history/projection keys per line; `risk` names a boolean key that marks a day red. */
+  lines: { history: string; projection: string; risk?: string; label: string }[];
+  height?: number;
+}) {
+  const { lang } = useI18n();
+  const RISK = "#e11d48";
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <ComposedChart data={rows} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
+        <CartesianGrid vertical={false} stroke={GRID} />
+        <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: AXIS }} tick={{ fontSize: 12, fill: INK_MUTED }} interval="preserveStartEnd" minTickGap={14} tickFormatter={(v) => localizeMonths(lang, String(v))} />
+        <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: INK_MUTED }} tickFormatter={(v: number) => fmtAxis(v, "money")} width={60} />
+        <Tooltip
+          cursor={{ stroke: "#94a3b8", strokeWidth: 1 }}
+          content={(p) => {
+            const tip = p as TooltipLikeProps;
+            const row = tip.payload?.[0]?.payload as ProjectionRow | undefined;
+            if (!tip.active || !row) return null;
+            return (
+              <div className="min-w-40 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-float">
+                <p className="mb-1.5 text-xs font-medium text-slate-500">{localizeMonths(lang, row.label)}</p>
+                <ul className="space-y-1">
+                  {lines.map((l, i) => {
+                    const v = row[l.history] ?? row[l.projection];
+                    if (typeof v !== "number") return null;
+                    const risky = l.risk && row[l.risk] === true;
+                    return (
+                      <li key={l.label} className="flex items-center gap-2">
+                        <span className="h-0.5 w-3 rounded-full" style={{ background: SERIES_COLORS[i] }} aria-hidden />
+                        <span className={cn("tabular font-semibold", risky ? "text-rose-600" : "text-slate-900")}>{fmtFull(v, "money")}</span>
+                        <span className="text-xs text-slate-500">{l.label}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          }}
+        />
+        {lines.flatMap((l, i) => [
+          <Line key={`${l.history}-h`} dataKey={l.history} stroke={SERIES_COLORS[i]} strokeWidth={2} dot={false} isAnimationActive={false} />,
+          <Line
+            key={`${l.projection}-p`}
+            dataKey={l.projection}
+            stroke={SERIES_COLORS[i]}
+            strokeWidth={2}
+            strokeDasharray="5 4"
+            isAnimationActive={false}
+            dot={(props: { cx?: number; cy?: number; payload?: ProjectionRow; index?: number }) => {
+              const risky = l.risk && props.payload?.[l.risk] === true;
+              return risky && props.cx !== undefined && props.cy !== undefined ? (
+                <circle key={`${l.projection}-${props.index}`} cx={props.cx} cy={props.cy} r={4.5} fill={RISK} stroke="#fff" strokeWidth={1.5} />
+              ) : (
+                <g key={`${l.projection}-${props.index}`} />
+              );
+            }}
+          />,
+        ])}
+      </ComposedChart>
+    </ResponsiveContainer>
   );
 }

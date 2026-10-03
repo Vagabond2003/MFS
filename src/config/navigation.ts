@@ -8,10 +8,12 @@ import {
   CirclePlus,
   ClipboardList,
   FileClock,
+  Gauge,
   Gavel,
   House,
   Landmark,
   LayoutDashboard,
+  Lightbulb,
   Percent,
   QrCode,
   ReceiptText,
@@ -20,6 +22,7 @@ import {
   ScrollText,
   Send,
   Smartphone,
+  Sparkles,
   Store,
   UserRound,
   Users,
@@ -112,6 +115,7 @@ export const AGENT_NAV: NavSection[] = [
     title: msg("Business"),
     items: [
       { href: "/transactions", label: msg("Transactions"), icon: FileClock },
+      { href: "/dashboard/agent/liquidity", label: msg("Liquidity planner"), icon: Gauge },
       { href: "/dashboard/agent/commission", label: msg("Commission"), icon: Percent },
       { href: "/dashboard/agent/settlement", label: msg("Settlement"), icon: Landmark },
       { href: "/dashboard/agent/verification", label: msg("Verification"), icon: BadgeCheck },
@@ -134,6 +138,7 @@ export const AGENT_MOBILE = {
     { href: "/dashboard/agent/recharge", label: msg("Recharge"), icon: Smartphone },
   ] as NavItem[],
   more: [
+    { href: "/dashboard/agent/liquidity", label: msg("Liquidity planner"), icon: Gauge },
     { href: "/transactions", label: msg("Transactions"), icon: FileClock },
     { href: "/dashboard/agent/commission", label: msg("Commission"), icon: Percent },
     { href: "/dashboard/agent/settlement", label: msg("Settlement"), icon: Landmark },
@@ -150,6 +155,7 @@ export const MERCHANT_NAV: NavItem[] = [
   { href: "/dashboard/merchant/receive", label: msg("Receive Payment"), icon: Wallet },
   { href: "/dashboard/merchant/qr", label: msg("QR Code"), icon: QrCode },
   { href: "/dashboard/merchant/sales", label: msg("Sales"), icon: ChartColumnBig },
+  { href: "/dashboard/merchant/insights", label: msg("Insights"), icon: Lightbulb },
   { href: "/transactions", label: msg("Payments"), icon: FileClock },
   { href: "/dashboard/merchant/refunds", label: msg("Refunds"), icon: RotateCcw },
   { href: "/dashboard/merchant/settlement", label: msg("Settlement"), icon: Landmark },
@@ -164,6 +170,7 @@ export const MERCHANT_MOBILE = {
     { href: "/dashboard/merchant/sales", label: msg("Sales"), icon: ChartColumnBig },
   ] as NavItem[],
   more: [
+    { href: "/dashboard/merchant/insights", label: msg("Insights"), icon: Lightbulb },
     { href: "/transactions", label: msg("Transactions"), icon: FileClock },
     { href: "/dashboard/merchant/settlement", label: msg("Settlement"), icon: Landmark },
     { href: "/dashboard/merchant/refunds", label: msg("Refunds"), icon: RotateCcw },
@@ -179,6 +186,7 @@ export const ADMIN_NAV: NavSection[] = [
   {
     items: [
       { href: "/admin", label: msg("Overview"), icon: LayoutDashboard, exact: true },
+      { href: "/admin/intelligence", label: msg("Intelligence"), icon: Sparkles },
       { href: "/admin/verifications", label: msg("Verifications"), icon: BadgeCheck },
       { href: "/admin/users", label: msg("Users"), icon: Users },
       { href: "/admin/transactions", label: msg("Transactions"), icon: ClipboardList },

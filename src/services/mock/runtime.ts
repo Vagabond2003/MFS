@@ -1,4 +1,5 @@
 import type { SessionClaims } from "@/lib/auth/session-token";
+import type { Lang } from "@/lib/i18n/core";
 
 /**
  * What the API handlers can read from the current request. The RPC route
@@ -13,16 +14,20 @@ export interface RequestEnv {
   clearSession(): void;
   userAgent(): string;
   ip(): string;
+  /** Interface language of the request (language cookie). */
+  lang(): Lang;
 }
 
-let provider: (() => RequestEnv | undefined) | null = null;
+// Kept on globalThis: dev-server hot reload can re-run this module without
+// re-running src/server/rpc.ts, which would otherwise leave no provider.
+const g = globalThis as unknown as { __koshRequestEnv?: () => RequestEnv | undefined };
 
 export function setRequestEnvProvider(next: () => RequestEnv | undefined) {
-  provider = next;
+  g.__koshRequestEnv = next;
 }
 
 export function requestEnv(): RequestEnv {
-  const env = provider?.();
+  const env = g.__koshRequestEnv?.();
   if (!env) throw new Error("API handlers must run inside a server request (src/server/rpc.ts).");
   return env;
 }
