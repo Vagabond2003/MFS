@@ -11,11 +11,17 @@ A Mobile Financial Services web app with three isolated customer roles — **Per
 Requirements: Node.js 20.9+ (tested on Node 25), npm, a Supabase project.
 
 1. In the Supabase **SQL Editor**, run `supabase/schema.sql`, then `supabase/seed.sql` (once each — re-running `schema.sql` deletes all data).
-   A database created before the in-memory cache was added needs `supabase/migrations/20261006_change_counter.sql` run once instead (safe on live data; without it every request reloads the whole database).
+   A database created before a change in `supabase/migrations/` needs those files run once instead, in name order — they are safe on live data and safe to re-run:
+   - `20261006_change_counter.sql` — lets the server cache the database in memory (without it every request reloads the whole database)
+   - `20261006_profile_pictures.sql` — profile pictures (`users.avatar_id` and the `avatars` table)
+
+   Restart `npm run dev` after running a migration: the server reads the database's columns once at startup.
 2. `npm install`
 3. `cp .env.example .env.local`, then fill in:
    - `DATABASE_URL` — Supabase → **Connect** → **Direct** → Method **Transaction pooler** (port 6543), with your database password.
    - `AUTH_JWT_SECRET` — any random string of 32+ characters.
+   - *Optional:* `SMS_NET_BD_API_KEY` to text OTP codes (see [SMS](#sms)).
+   - *Optional:* Brevo SMTP (`BREVO_SMTP_*`) and a verified sender in `EMAIL_FROM` to email OTP codes and account emails (see [Email](#email)).
    - *Optional:* `GEMINI_API_KEY` and/or `GROQ_API_KEY` for AI-written insight text (see [AI configuration](#ai-configuration)). Without them every insight still works with template text.
 4. *Optional, demo data:* run `supabase/synthetic-data.sql` in the SQL Editor after `seed.sql` — 4 more accounts per role and 90 days of history for every account, as exported on 2026-10-03. For history that ends today instead, run `node --env-file=.env.local scripts/seed-synthetic.mjs` (see [Synthetic data](#synthetic-data)).
 5. `npm run dev` and open http://localhost:3000.
@@ -167,6 +173,7 @@ Each role has its own navigation and information architecture:
 | Rate limiting | fixed-window limiter for login, OTP sends, password reset and uploads; PIN/password lockouts |
 | CSRF | http client sends `X-CSRF-Token` (double-submit cookie) on every mutating request; cookie is `SameSite=Lax` |
 | Upload validation | extension, MIME, ≤5 MB and **magic bytes** checked; SHA-256 recorded; stored privately |
+| Profile pictures | JPG/PNG/WebP ≤ 2 MB, magic bytes checked; stored in `avatars`, served by `GET /api/avatars/:id` to signed-in users only (random ids, `nosniff`, sandboxed CSP) |
 | Audit logging | append-only `audit_logs` for sign-ins, money movement, admin actions |
 | Transaction authorisation | PIN on every operation, OTP step-up, idempotency key against double submits |
 | Server-side balances & atomicity | ledger `post()` inside a serialised `write()` transaction; invariants (no negative or fractional balances) are checked before commit, and any failure rolls back |
@@ -193,7 +200,7 @@ Set `NEXT_PUBLIC_API_MODE=http`, `NEXT_PUBLIC_API_BASE_URL` and `AUTH_JWT_SECRET
 | Wallet & money | `GET /wallet` · `GET /wallet/funding-sources` · `POST /operations/quote` · `POST /operations/otp` · `POST /operations/execute` |
 | History | `GET /transactions?search&type&status&from&to&page&pageSize` · `GET /transactions/:trxId` · `POST /transactions/:trxId/disputes` |
 | Notifications | `GET /notifications` · `GET /notifications/unread-count` · `POST /notifications/:id/read` · `POST /notifications/read-all` |
-| Profile & security | `GET/PATCH /profile` · `POST /security/password` · `POST /security/pin/otp` · `POST /security/pin` · `POST /security/2fa/otp` · `POST /security/2fa` · `GET /security/sessions` · `DELETE /security/sessions/:id` · `POST /security/logout-all` · `GET /security/login-history` |
+| Profile & security | `GET/PATCH /profile` · `POST/DELETE /profile/avatar` (picture from a `POST /uploads` with purpose `AVATAR`) · `POST /security/password` · `POST /security/pin/otp` · `POST /security/pin` · `POST /security/2fa/otp` · `POST /security/2fa` · `GET /security/sessions` · `DELETE /security/sessions/:id` · `POST /security/logout-all` · `GET /security/login-history` |
 | Dashboards | `GET /personal/dashboard` · `GET /personal/recipients` · `GET /agent/dashboard` · `GET /agent/commissions` · `GET /agent/settlements` · `GET /merchant/dashboard` · `GET /merchant/settlements` |
 | Merchant QR | `GET /merchant/qr` · `POST /merchant/payment-requests` · `GET /merchant/payment-requests[/:id]` · `POST /merchant/payment-requests/:id/cancel` |
 | Insights | `GET /agent/insights/{liquidity,performance}` · `GET /merchant/insights/{demand,benchmark,recommendations}` · `GET /admin/insights/{churn,agents,coverage}` |
@@ -299,6 +306,38 @@ After running the migration and the seed, with the AI keys set:
    - Below it: busiest hours, the payment mix, and the comparison with the other merchants (medians only, no names).
    - At the top: three recommendations, each chosen by code and worded by the model.
 5. **বাংলা and resilience.** Switch the language toggle to বাংলা: the screens and the AI text come back in Bengali. Then remove the AI keys from `.env.local` and restart. Every number stays the same, and the text switches to the *Automatic summary* templates.
+
+## SMS
+
+OTP codes go out by text message through **sms.net.bd** (`src/server/sms.ts`) when `SMS_NET_BD_API_KEY` is set. Otherwise the development SMS provider logs them and shows them on screen.
+
+* The code is texted to the phone it's for: the account's own number, the customer's number for an agent-assisted cash out, or the number typed at sign-up. Sign-up requests are limited to 10 per network and to the usual per-number OTP limit, every 15 minutes.
+* **Demo and synthetic accounts are never texted.** Their numbers are made up and may belong to real people.
+* Like email, messages are queued and sent after the request succeeds. Failures are logged with the gateway's error code only.
+* New sms.net.bd accounts can only text their own registered number until the first recharge (error 421).
+
+| Variable | Notes |
+|---|---|
+| `SMS_NET_BD_API_KEY` | sms.net.bd → API |
+| `SMS_SENDER_ID` | Optional approved sender ID |
+
+## Email
+
+OTP codes and account emails go out through **Brevo SMTP** (`src/server/email.ts`, `nodemailer`). Without the `BREVO_SMTP_*` variables and `EMAIL_FROM`, email is off and codes are shown on screen by the development SMS provider, as before.
+
+* **OTP codes** are emailed to the owner of the phone number the code is for, when that account has an email. For an agent-assisted cash out that is the customer, not the agent. At sign-up the code goes to the email typed on the form; that is rate-limited to 3 per address and 10 per network every 15 minutes. The code screen shows both the phone and the masked email.
+* **Notifications** of these types are emailed as well as shown in the app: account verification, security alerts (password/PIN changed, lockouts, suspension), money sent, money received, failed payments and settlements. They use the user's language and link back to the right screen.
+* **Delivery:** handlers only queue emails. The RPC layer sends them after the call succeeds, so SMTP never runs inside a database transaction and a rolled-back request sends nothing. Failures are logged without addresses or codes.
+* Reserved domains (`example.com`, `*.test`, `*.invalid`, …) never receive mail, so the demo and synthetic accounts don't either.
+* `OTP_SHOW_CODES=false` stops showing codes on screen. Use it once real delivery is in place.
+
+| Variable | Notes |
+|---|---|
+| `BREVO_SMTP_HOST`, `BREVO_SMTP_PORT` | `smtp-relay.brevo.com`, `587` |
+| `BREVO_SMTP_USER`, `BREVO_SMTP_PASSWORD` | Brevo → SMTP & API → SMTP |
+| `EMAIL_FROM` | e.g. `"Kosh <no-reply@your-domain.com>"`. Must be a verified sender in Brevo. |
+| `APP_URL` | Optional public URL for links in emails (defaults to the request's origin) |
+| `OTP_SHOW_CODES` | `true` (default) shows codes on screen; `false` in production |
 
 ## Design notes
 

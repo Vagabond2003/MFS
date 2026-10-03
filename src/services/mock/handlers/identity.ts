@@ -3,12 +3,14 @@ import {
   merchantRegistrationSchema,
   passwordSchema,
   personalRegistrationSchema,
+  optionalEmailSchema,
   phoneSchema,
   sniffFileSignature,
   validateUploadFile,
   zodFieldErrors,
 } from "@/lib/validation";
 import { maskPhone, normalizePhone } from "@/lib/utils";
+import { attachRegistrationAvatar, registrationAvatar, storeAvatar } from "@/server/avatars";
 import type { AccountStatus, DocumentType, Role, SessionInfo } from "@/types/domain";
 import type { Lang } from "@/lib/i18n/core";
 import type { AuthApi, RegistrationApi, UploadApi, UploadPurpose } from "../../contracts";
@@ -22,6 +24,7 @@ import {
   createSession,
   issueOtp,
   notify,
+  requestIp,
   resolveCaller,
   setSessionCookie,
 } from "../context";
@@ -194,7 +197,7 @@ export const auth: AuthApi = {
 
 /* ───────────────────────── Uploads ───────────────────────── */
 
-const PURPOSE_TYPE: Record<UploadPurpose, DocumentType> = {
+const PURPOSE_TYPE: Record<Exclude<UploadPurpose, "AVATAR">, DocumentType> = {
   NID: "NID_FRONT",
   PHOTO: "PHOTO",
   SELFIE: "SELFIE",
@@ -203,6 +206,14 @@ const PURPOSE_TYPE: Record<UploadPurpose, DocumentType> = {
 
 export const uploads: UploadApi = {
   async upload(file, purpose) {
+    if (purpose === "AVATAR") {
+      // Profile pictures: own table and rules (JPG/PNG/WebP, ≤ 2 MB); claimed by registration or profile.setAvatar.
+      const callerId = await write((db) => {
+        consumeRateLimit(db, "uploads", 30, 10 * 60_000);
+        return resolveCaller(db)?.user.id ?? null;
+      });
+      return storeAvatar(file, callerId);
+    }
     const problem = validateUploadFile(file);
     if (problem) throw new ApiError("VALIDATION", problem);
     const sniffed = await sniffFileSignature(file);
@@ -270,6 +281,7 @@ async function newUser(input: { role: Role; name: string; phone: string; email: 
     status: input.status,
     twoFactorEnabled: false,
     language: input.language,
+    avatarId: null,
     isDemo: false,
     failedLoginCount: 0,
     lockedUntil: null,
@@ -301,15 +313,22 @@ function validationError(err: import("zod").ZodError) {
 }
 
 export const registration: RegistrationApi = {
-  async sendPhoneOtp(phoneInput) {
+  async sendPhoneOtp(phoneInput, emailInput) {
     const parsed = phoneSchema.safeParse(phoneInput);
     if (!parsed.success) throw new ApiError("VALIDATION", parsed.error.issues[0].message);
     const phone = parsed.data;
+    // The code also goes to the email typed on the form, if it's a valid address.
+    const emailParsed = optionalEmailSchema.safeParse(emailInput ?? "");
+    const email = emailParsed.success && emailParsed.data ? emailParsed.data : null;
     return write(async (db) => {
       if (db.users.some((u) => u.phone === phone)) {
         throw new ApiError("CONFLICT", "This mobile number is already registered. Try signing in instead.");
       }
-      return issueOtp(db, { purpose: "REGISTRATION", destination: phone, userId: null, context: `register:${phone}` });
+      // Anyone can start a sign-up, so texting a typed number and emailing a typed address
+      // are limited per network and per address (the number has its own OTP limit).
+      consumeRateLimit(db, `otp-ip:${requestIp()}`, 10, 15 * 60_000);
+      if (email) consumeRateLimit(db, `otp-email:${email.toLowerCase()}`, 3, 15 * 60_000);
+      return issueOtp(db, { purpose: "REGISTRATION", destination: phone, userId: null, context: `register:${phone}`, email });
     });
   },
 
@@ -327,11 +346,13 @@ export const registration: RegistrationApi = {
     const nidOk = input.nidNumber ? (await providers.kyc.matchNid(input.nidNumber, input.dateOfBirth)).match : false;
     const eKycPassed = !!input.nidNumber && !!input.nidDocument && selfie === "VERIFIED" && nidOk;
 
+    const avatarId = await registrationAvatar(input.avatar?.uploadId);
     const outcome = await write<Outcome<{ userId: string }>>(async (db) => {
       const err = await checkOtp(db, { challengeId: input.otpChallengeId, code: input.otpCode, purpose: "REGISTRATION", context: `register:${input.phone}` });
       if (err) return { error: err };
       assertUnique(db, input.phone, input.email || null);
       const user = await newUser({ role: "PERSONAL", name: input.fullName, phone: input.phone, email: input.email || null, password: input.password, pin: input.pin, status: eKycPassed ? "VERIFIED" : "PENDING_VERIFICATION", language: input.language });
+      user.avatarId = avatarId;
       db.users.push(user);
       addWallet(db, user);
       db.personalProfiles.push({
@@ -351,18 +372,22 @@ export const registration: RegistrationApi = {
       audit(db, { actor: user, action: "USER_REGISTERED", target: user.id, metadata: { role: "PERSONAL", eKyc: eKycPassed } });
       return { ok: { userId: user.id } };
     });
-    return unwrap(outcome);
+    const created = unwrap(outcome);
+    await attachRegistrationAvatar(avatarId, created.userId);
+    return created;
   },
 
   async registerAgent(raw) {
     const parsed = agentRegistrationSchema.safeParse(raw);
     if (!parsed.success) throw validationError(parsed.error);
     const input = parsed.data;
+    const avatarId = await registrationAvatar(input.avatar?.uploadId);
     const outcome = await write<Outcome<{ userId: string; applicationId: string }>>(async (db) => {
       const err = await checkOtp(db, { challengeId: input.otpChallengeId, code: input.otpCode, purpose: "REGISTRATION", context: `register:${input.phone}` });
       if (err) return { error: err };
       assertUnique(db, input.phone, input.email);
       const user = await newUser({ role: "AGENT", name: input.fullName, phone: input.phone, email: input.email, password: input.password, pin: input.pin, status: "APPLICATION_SUBMITTED", language: input.language });
+      user.avatarId = avatarId;
       db.users.push(user);
       addWallet(db, user);
       let agentCode = "";
@@ -389,18 +414,22 @@ export const registration: RegistrationApi = {
       audit(db, { actor: user, action: "USER_REGISTERED", target: user.id, metadata: { role: "AGENT" } });
       return { ok: { userId: user.id, applicationId: agentCode } };
     });
-    return unwrap(outcome);
+    const created = unwrap(outcome);
+    await attachRegistrationAvatar(avatarId, created.userId);
+    return created;
   },
 
   async registerMerchant(raw) {
     const parsed = merchantRegistrationSchema.safeParse(raw);
     if (!parsed.success) throw validationError(parsed.error);
     const input = parsed.data;
+    const avatarId = await registrationAvatar(input.avatar?.uploadId);
     const outcome = await write<Outcome<{ userId: string; merchantId: string }>>(async (db) => {
       const err = await checkOtp(db, { challengeId: input.otpChallengeId, code: input.otpCode, purpose: "REGISTRATION", context: `register:${input.phone}` });
       if (err) return { error: err };
       assertUnique(db, input.phone, input.email);
       const user = await newUser({ role: "MERCHANT", name: input.ownerName, phone: input.phone, email: input.email, password: input.password, pin: input.pin, status: "PENDING", language: input.language });
+      user.avatarId = avatarId;
       db.users.push(user);
       addWallet(db, user);
       let merchantId = "";
@@ -428,6 +457,8 @@ export const registration: RegistrationApi = {
       audit(db, { actor: user, action: "USER_REGISTERED", target: user.id, metadata: { role: "MERCHANT" } });
       return { ok: { userId: user.id, merchantId } };
     });
-    return unwrap(outcome);
+    const created = unwrap(outcome);
+    await attachRegistrationAvatar(avatarId, created.userId);
+    return created;
   },
 };

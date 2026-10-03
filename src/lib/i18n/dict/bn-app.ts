@@ -566,4 +566,13 @@ export const app: Record<string, string> = {
   "e.g. Expired trade license": "যেমন: মেয়াদোত্তীর্ণ ট্রেড লাইসেন্স",
   "Secure document viewer": "নিরাপদ ডকুমেন্ট ভিউয়ার",
   "In production this streams the file from private object storage via a short-lived signed URL. The development storage provider keeps only metadata and a SHA-256 hash.": "প্রোডাকশনে ফাইলটি স্বল্পমেয়াদি সাইনড URL-এর মাধ্যমে প্রাইভেট স্টোরেজ থেকে আসে। ডেভেলপমেন্ট স্টোরেজ শুধু মেটাডেটা ও SHA-256 হ্যাশ রাখে।",
+
+  /* ── Profile picture ── */
+  "Profile picture": "প্রোফাইল ছবি",
+  "JPG, PNG or WebP · up to 2 MB": "JPG, PNG বা WebP · সর্বোচ্চ ২ MB",
+  "Change photo": "ছবি বদলান",
+  "Choose photo": "ছবি বেছে নিন",
+  "Remove": "সরান",
+  "Profile picture updated": "প্রোফাইল ছবি আপডেট হয়েছে",
+  "Profile picture removed": "প্রোফাইল ছবি সরানো হয়েছে",
 };

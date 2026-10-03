@@ -6,7 +6,7 @@ import { DEFAULT_LANG, LANG_COOKIE, isLang, translator } from "@/lib/i18n/core";
 
 export const runtime = "nodejs";
 
-const UPLOAD_PURPOSES: string[] = ["NID", "PHOTO", "SELFIE", "BUSINESS_DOCUMENT"] satisfies UploadPurpose[];
+const UPLOAD_PURPOSES: string[] = ["NID", "PHOTO", "SELFIE", "BUSINESS_DOCUMENT", "AVATAR"] satisfies UploadPurpose[];
 
 /**
  * Single API endpoint for NEXT_PUBLIC_API_MODE=supabase.
@@ -60,6 +60,9 @@ export async function POST(request: NextRequest) {
     userAgent: request.headers.get("user-agent") ?? "",
     ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "127.0.0.1",
     lang,
+    origin: process.env.APP_URL || request.nextUrl.origin,
+    outbox: [],
+    smsOutbox: [],
     cookie: null,
   };
 

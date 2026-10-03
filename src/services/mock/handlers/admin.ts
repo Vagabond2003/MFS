@@ -14,7 +14,7 @@ import { randomId } from "../crypto";
 import { settleDue } from "../ledger";
 import type { DbState, DisputeRecord, UserRecord } from "../schema";
 import { read, write } from "../store";
-import { toDocumentView, toProfileView, toTransactionView, toWalletView } from "../views";
+import { avatarUrlOf, toDocumentView, toProfileView, toTransactionView, toWalletView } from "../views";
 import { filterTransactions, paginate } from "./account";
 
 const ADMIN = ["ADMIN"] as const;
@@ -37,6 +37,7 @@ function toRow(db: DbState, u: UserRecord): AdminUserRow {
     lastLoginAt: u.lastLoginAt,
     businessName: businessName(db, u),
     isDemo: u.isDemo,
+    avatarUrl: avatarUrlOf(u),
   };
 }
 

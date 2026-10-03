@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
 import { ArrowLeft, ArrowRight, CircleCheck, Languages, MessageSquareText } from "lucide-react";
 import { toast } from "sonner";
+import { AvatarPicker } from "@/components/ui/avatar-picker";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CodeInput, DevCodeHint } from "@/components/ui/code-input";
@@ -16,8 +17,8 @@ import { useHydrated } from "@/hooks/use-hydrated";
 import { useI18n } from "@/hooks/use-i18n";
 import { LANGS, LANG_NAME, type Lang } from "@/lib/i18n/core";
 import { toApiError, type ApiError } from "@/services/errors";
-import { cn, maskPhone } from "@/lib/utils";
-import type { OtpChallenge } from "@/types/domain";
+import { cn, maskEmail, maskPhone } from "@/lib/utils";
+import type { OtpChallenge, UploadedFileRef } from "@/types/domain";
 
 export interface WizardStep<T extends FieldValues> {
   title: string;
@@ -159,6 +160,7 @@ export function WizardFrame({
 /** Sends and captures the registration OTP for the phone entered earlier. */
 export function PhoneVerification({
   phone,
+  email,
   challenge,
   onChallenge,
   code,
@@ -166,6 +168,8 @@ export function PhoneVerification({
   error,
 }: {
   phone: string;
+  /** The code is emailed here too, when given. */
+  email?: string | null;
   challenge: OtpChallenge | null;
   onChallenge: (c: OtpChallenge) => void;
   code: string;
@@ -177,7 +181,7 @@ export function PhoneVerification({
   const send = async () => {
     setBusy(true);
     try {
-      onChallenge(await api.registration.sendPhoneOtp(phone));
+      onChallenge(await api.registration.sendPhoneOtp(phone, email || null));
       onCode("");
       toast.success(t("Verification code sent"));
     } catch (e) {
@@ -195,7 +199,14 @@ export function PhoneVerification({
         <div className="text-sm">
           <p className="font-semibold text-slate-900">{t("Verify your mobile number")}</p>
           <p className="text-slate-500">
-            {t("We'll send a 6-digit code to")} <span className="tabular font-medium text-slate-700">{maskPhone(phone)}</span>.
+            {t("We'll send a 6-digit code to")} <span className="tabular font-medium text-slate-700">{maskPhone(phone)}</span>
+            {email ? (
+              <>
+                {" "}
+                {t("and")} <span className="font-medium text-slate-700">{maskEmail(email)}</span>
+              </>
+            ) : null}
+            .
           </p>
         </div>
       </div>
@@ -266,6 +277,35 @@ export function StepIntro({ title, children }: { title: string; children?: React
  * The new account's interface language. Defaults to the language the visitor
  * is browsing in; switching it previews the form in that language.
  */
+/** Optional profile picture at sign-up; uploaded right away, attached when the account is created. */
+export function ProfilePictureField({
+  name,
+  preview,
+  error,
+  onChange,
+}: {
+  name: string;
+  /** Kept by the form so the picture survives moving between steps. */
+  preview: string | null;
+  error?: string;
+  onChange: (ref: UploadedFileRef | null, preview: string | null) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="space-y-1.5">
+      <p className="flex items-center gap-1 text-sm font-medium text-slate-700">
+        {t("Profile picture")} <span className="font-normal text-slate-400">{t("(optional)")}</span>
+      </p>
+      <AvatarPicker size="md" name={name} currentUrl={preview} onUploaded={(ref, url) => onChange(ref, url)} onRemove={() => onChange(null, null)} />
+      {error && (
+        <p className="text-[13px] font-medium text-rose-600" role="alert">
+          {t(error)}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function LanguagePreference({ value, onChange }: { value: Lang; onChange: (lang: Lang) => void }) {
   const { t, setLang } = useI18n();
   return (

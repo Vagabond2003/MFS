@@ -28,7 +28,7 @@ import { DescriptionList, Table, Tabs, TD, TH, THead, TR } from "@/components/ui
 import { Alert, EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Field, Input, PasswordInput, Switch, Textarea } from "@/components/ui/form";
 import { ConfirmDialog, Modal } from "@/components/ui/modal";
-import { Avatar } from "@/components/ui/popover";
+import { AvatarPicker } from "@/components/ui/avatar-picker";
 import { ResendButton } from "@/components/flows/transaction-flow";
 import { invalidate, useApi } from "@/hooks/use-api";
 import { useAuth, useCurrentUser } from "@/hooks/use-auth";
@@ -125,7 +125,23 @@ function Overview({ profile: p }: { profile: ProfileView }) {
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
       <div className="space-y-6">
         <Card className="p-6 text-center">
-          <Avatar name={p.user.businessName ?? p.user.name} className="mx-auto h-20 w-20 text-2xl" />
+          <AvatarPicker
+            name={p.user.businessName ?? p.user.name}
+            currentUrl={p.user.avatarUrl}
+            className="justify-center text-left"
+            onUploaded={async (ref) => {
+              await api.profile.setAvatar(ref.uploadId);
+              toast.success(t("Profile picture updated"));
+              invalidate("profile", "transactions");
+              void refresh();
+            }}
+            onRemove={async () => {
+              await api.profile.setAvatar(null);
+              toast.success(t("Profile picture removed"));
+              invalidate("profile", "transactions");
+              void refresh();
+            }}
+          />
           <p className="mt-4 flex items-center justify-center gap-2 text-lg font-bold text-slate-900">
             {p.user.businessName ?? p.user.name} {p.user.isDemo && <DemoBadge />}
           </p>
