@@ -4,84 +4,12 @@
  *
  *   node scripts/check-intelligence.mjs              generates the synthetic dataset offline, then checks it
  *   node scripts/check-intelligence.mjs FILE.json    checks a dataset written by seed-synthetic.mjs --emit
- *
- * Node runs the TypeScript directly (type stripping); a small resolve hook maps
- * the "@/" alias and extensionless imports the way the Next.js bundler does.
  */
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
-import { register } from "node:module";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { checker, importSrc, loadSyntheticDb } from "./lib/synthetic-db.mjs";
 
-process.removeAllListeners("warning");
-process.on("warning", (w) => w.code !== "MODULE_TYPELESS_PACKAGE_JSON" && console.warn(w.message));
-
-const ROOT = new URL("..", import.meta.url);
-const SRC = new URL("src/", ROOT).href;
-register(
-  "data:text/javascript," +
-    encodeURIComponent(`
-      export async function resolve(specifier, context, next) {
-        if (specifier.startsWith("@/")) specifier = ${JSON.stringify(SRC)} + specifier.slice(2);
-        try {
-          return await next(specifier, context);
-        } catch (error) {
-          if (!/^(\\.|file:)/.test(specifier) || !["ERR_MODULE_NOT_FOUND", "ERR_UNSUPPORTED_DIR_IMPORT"].includes(error?.code)) throw error;
-          for (const ext of [".ts", "/index.ts"]) {
-            try { return await next(specifier + ext, context); } catch {}
-          }
-          throw error;
-        }
-      }`),
-);
-
-/* ───────────── Dataset ───────────── */
-
-let file = process.argv[2];
-if (!file) {
-  file = join(mkdtempSync(join(tmpdir(), "kosh-intel-")), "synthetic.json");
-  execFileSync(process.execPath, [new URL("scripts/seed-synthetic.mjs", ROOT).pathname, "--offline", `--emit=${file}`], { stdio: "inherit" });
-}
-const data = JSON.parse(readFileSync(file, "utf8"));
-const NOW = Date.parse(data.generatedAt);
-const db = {
-  version: 5,
-  seededAt: data.generatedAt,
-  users: [...data.users, ...data.demoRecords.users],
-  personalProfiles: data.personalProfiles,
-  agentProfiles: [...data.agentProfiles, ...data.demoRecords.agentProfiles],
-  merchantProfiles: data.merchantProfiles,
-  merchantBusinesses: [...data.merchantBusinesses, ...data.demoRecords.merchantBusinesses],
-  statusHistory: data.statusHistory,
-  documents: [],
-  wallets: [...data.wallets, ...data.demoRecords.wallets],
-  transactions: data.transactions,
-  commissions: data.commissions,
-  notifications: [],
-  otpCodes: [],
-  sessions: [],
-  auditLogs: [],
-  disputes: [],
-  paymentRequests: [],
-  aiInsights: [],
-  rateLimits: {},
-  idempotency: {},
-};
-const S = data.specials;
-
-const intel = await import(pathToFileURL(new URL("src/services/mock/intelligence/index.ts", ROOT).pathname).href);
-
-/* ───────────── Tiny assertion helper ───────────── */
-
-let failures = 0;
-let passes = 0;
-function check(name, ok, detail = "") {
-  if (ok) passes++;
-  else failures++;
-  console.log(`${ok ? "✓" : "✗"} ${name}${detail ? ` — ${detail}` : ""}`);
-}
+const { db, now: NOW, specials: S } = loadSyntheticDb(process.argv[2]);
+const intel = await importSrc("src/services/mock/intelligence/index.ts");
+const { check, summary } = checker();
 const finite = (v) => typeof v === "number" && Number.isFinite(v);
 
 /* ───────────── forecast ───────────── */
@@ -186,5 +114,4 @@ for (const [label, id] of [["service-gap agent", S.serviceGap], ["demo agent", "
   check("coverage: Gazipur needs more agents", cov[0].agentsNeeded > 0, `${cov[0].agentsNeeded} more agents`);
 }
 
-console.log(`\n${passes} passed, ${failures} failed`);
-process.exit(failures ? 1 : 0);
+summary();

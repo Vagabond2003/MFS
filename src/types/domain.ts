@@ -797,3 +797,22 @@ export interface DistrictCoverage {
   /** Extra agents needed to bring customers per agent down to the network median. */
   agentsNeeded: number;
 }
+
+/* ───────────── AI wording ───────────── */
+
+/** Where an insight's wording came from. Figures are always computed in code; only the words vary. */
+export interface AiMeta {
+  /** AI: written by a language model from the computed figures · TEMPLATE: fixed wording, no model. */
+  source: "AI" | "TEMPLATE";
+  model: string | null;
+  generatedAt: string;
+  language: "en" | "bn";
+}
+
+export interface AiText extends AiMeta {
+  text: string;
+}
+
+export interface AiRecommendations extends AiMeta {
+  items: { title: string; detail: string }[];
+}

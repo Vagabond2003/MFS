@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { SessionClaims } from "@/lib/auth/session-token";
+import type { Lang } from "@/lib/i18n/core";
 import { ApiError, toApiError } from "@/services/errors";
 import { admin, dev } from "@/services/mock/handlers/admin";
 import { agent, lookup, merchant, notifications, personal, profile, security, transactions, wallet } from "@/services/mock/handlers/account";
@@ -42,6 +43,8 @@ export interface CallContext {
   claims: SessionClaims | null;
   userAgent: string;
   ip: string;
+  /** Interface language of the request (from the language cookie). */
+  lang: Lang;
   /** Set when a handler signs the user in or out. */
   cookie: { action: "set"; claims: SessionClaims; remember: boolean } | { action: "clear" } | null;
 }
@@ -63,6 +66,7 @@ setRequestEnvProvider(() => {
     },
     userAgent: () => ctx.userAgent,
     ip: () => ctx.ip,
+    lang: () => ctx.lang,
   };
 });
 

@@ -1,4 +1,5 @@
 import type { SessionClaims } from "@/lib/auth/session-token";
+import type { Lang } from "@/lib/i18n/core";
 
 /**
  * What the API handlers can read from the current request. The RPC route
@@ -13,6 +14,8 @@ export interface RequestEnv {
   clearSession(): void;
   userAgent(): string;
   ip(): string;
+  /** Interface language of the request (language cookie). */
+  lang(): Lang;
 }
 
 let provider: (() => RequestEnv | undefined) | null = null;

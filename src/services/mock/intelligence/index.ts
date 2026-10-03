@@ -9,3 +9,4 @@ export { churnRanking, merchantChurnRisk, CHURN_WEIGHTS } from "./churn";
 export { merchantBenchmark, BENCHMARK_WINDOW_DAYS } from "./benchmark";
 export { agentIntelligence, agentPerformance } from "./anomalies";
 export { locationCoverage } from "./coverage";
+export { merchantSignals, type MerchantSignal, type MerchantSignalCode } from "./recommendations";
