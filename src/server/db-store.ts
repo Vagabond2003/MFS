@@ -567,6 +567,33 @@ export async function pruneAvatars(userId: string, keep: string | null) {
   await sql()`delete from avatars where (user_id = ${userId} and id is distinct from ${keep}) or (user_id is null and created_at < now() - interval '1 day')`;
 }
 
+/* ───────────── Verification document files (bytes kept out of the snapshot) ───────────── */
+
+const globalForDocs = globalThis as unknown as { __koshDocFilesReady?: boolean };
+
+/** True once supabase/migrations/20261007_document_files.sql has been run. */
+export async function documentFilesReady(): Promise<boolean> {
+  if (globalForDocs.__koshDocFilesReady) return true;
+  const [{ ok }] = await sql()<{ ok: boolean }[]>`select to_regclass('public.document_files') is not null as ok`;
+  // Only cache success, so running the migration takes effect without a restart.
+  if (ok) globalForDocs.__koshDocFilesReady = true;
+  return ok;
+}
+
+/** Stores the bytes of an uploaded document (its verification_documents row must already exist). */
+export async function saveDocumentFile(row: { documentId: string; mimeType: string; sha256: string; data: Uint8Array }) {
+  await sql()`
+    insert into document_files (document_id, mime_type, size_bytes, sha256, data)
+    values (${row.documentId}, ${row.mimeType}, ${row.data.byteLength}, ${row.sha256}, ${Buffer.from(row.data)})`;
+}
+
+export async function readDocumentFile(documentId: string): Promise<{ mimeType: string; sha256: string; data: Buffer } | null> {
+  if (!(await documentFilesReady())) return null;
+  const [r] = await sql()<{ mime_type: string; sha256: string; data: Buffer }[]>`
+    select mime_type, sha256, data from document_files where document_id = ${documentId}`;
+  return r ? { mimeType: r.mime_type, sha256: r.sha256, data: r.data } : null;
+}
+
 /** An unrevoked, unexpired session (for routes outside /api/rpc that only need "is signed in"). */
 export async function sessionActive(sessionId: string): Promise<boolean> {
   const [r] = await sql()<{ ok: boolean }[]>`

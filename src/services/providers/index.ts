@@ -56,7 +56,7 @@ export interface StorageProvider {
 
 export class DevStorageProvider implements StorageProvider {
   readonly name = "dev-metadata-only";
-  /** Hashes the bytes and keeps metadata only; the file itself is not persisted. */
+  /** Hashes the bytes. The bytes themselves are stored by src/server/documents.ts (document_files table). */
   async put(file: File, key: string) {
     const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
     const sha256 = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");

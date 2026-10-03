@@ -320,3 +320,18 @@ export const admin: AdminApi = {
     });
   },
 };
+
+/**
+ * Server-only (not part of AdminApi, so not callable through /api/rpc):
+ * authorises an administrator to open a verification document's file and
+ * records the view. Used by GET /api/documents/:id, which then streams the bytes.
+ */
+export function authorizeDocumentView(documentId: string) {
+  return write((db) => {
+    const { user: actor } = requireCaller(db, ADMIN);
+    const d = db.documents.find((x) => x.id === documentId);
+    if (!d) throw new ApiError("NOT_FOUND", "Document not found.");
+    audit(db, { actor, action: "DOCUMENT_VIEWED", target: d.userId, metadata: { document: d.type, file: d.id } });
+    return { fileName: d.fileName, mimeType: d.mimeType };
+  });
+}

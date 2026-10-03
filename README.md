@@ -14,6 +14,7 @@ Requirements: Node.js 20.9+ (tested on Node 25), npm, a Supabase project.
    A database created before a change in `supabase/migrations/` needs those files run once instead, in name order — they are safe on live data and safe to re-run:
    - `20261006_change_counter.sql` — lets the server cache the database in memory (without it every request reloads the whole database)
    - `20261006_profile_pictures.sql` — profile pictures (`users.avatar_id` and the `avatars` table)
+   - `20261007_document_files.sql` — keeps uploaded verification documents (NID, photo, licenses) so admins can view them under **Verifications**
 
    Restart `npm run dev` after running a migration: the server reads the database's columns once at startup.
 2. `npm install`
