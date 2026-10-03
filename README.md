@@ -14,6 +14,7 @@ Requirements: Node.js 20.9+ (tested on Node 25), npm, a Supabase project.
    A database created before a change in `supabase/migrations/` needs those files run once instead, in name order — they are safe to re-run:
    - `20261003_user_language.sql` — each user's interface language
    - `20261004_ai_intelligence.sql` — districts on agents/merchants and the `ai_insights` cache (needed for the [intelligence features](#merchant--agent-intelligence))
+   - `20261005_fix_json_strings.sql` — optional cleanup of JSON values saved as strings by older versions
 2. `npm install`
 3. `cp .env.example .env.local`, then fill in:
    - `DATABASE_URL` — Supabase → **Connect** → **Direct** → Method **Transaction pooler** (port 6543), with your database password.
