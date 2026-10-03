@@ -311,13 +311,14 @@ function generate(base) {
   special.risingA.role = special.risingB.role = "rising";
   special.gap.role = "service-gap";
   wallets.get(special.gap.user.id).cashInHand = 6_000_000; // thin cash buffer for its demand
-  wallets.get(special.nearLimit.user.id).cashInHand = 90_000_000; // a large cash desk feeding the near-limit withdrawals
+  wallets.get(special.nearLimit.user.id).cashInHand = 150_000_000; // a large cash desk feeding the near-limit withdrawals
+  for (const a of [special.risingA, special.risingB]) wallets.get(a.user.id).cashInHand = 40_000_000; // growing outlets keep more cash
   if (base.demoAgent) {
     const a = base.demoAgent;
     wallets.set(a.user.id, { userId: a.user.id, available: a.wallet.available, savings: 0, pending: 0, cashInHand: a.wallet.cashInHand ?? 0, version: 0, updatedAt: null, demo: true, start: { ...a.wallet } });
     agents.push({ user: a.user, party: { userId: a.user.id, name: a.outletName ?? a.user.name, account: a.user.phone, kind: "AGENT" }, district: "Dhaka", area: "Mirpur", appeal: 2.2, role: "demo" });
   }
-  const appeal = (a, day) => (a.role === "rising" ? 0.25 + 2.6 * ((day - FIRST_DAY) / (DAYS - 1)) ** 1.4 : a.appeal);
+  const appeal = (a, day) => (a.role === "rising" ? 0.15 + 4.5 * ((day - FIRST_DAY) / (DAYS - 1)) ** 2 : a.appeal);
 
   /* ── Merchants ── */
   const merchants = [];
@@ -339,7 +340,7 @@ function generate(base) {
       history(user, [["PENDING", "Merchant application submitted", null, 0], ["VERIFIED", "Approved", DEMO_ADMIN, 3]]);
       merchants.push({
         user, biz, district, category, party: { userId: user.id, name: businessName, account: biz.merchantId, kind: "MERCHANT" },
-        rate: category === "RESTAURANT" ? between(0.6, 1.2) : category === "GROCERY" ? between(0.55, 1.05) : between(0.2, 0.6),
+        rate: category === "RESTAURANT" ? between(0.6, 1.2) : category === "GROCERY" ? between(0.55, 1.05) : category === "OTHER" ? between(0.45, 0.8) : between(0.2, 0.6),
         qrShare: between(0.3, 0.9), failRate: 0.012, regulars: [], decline: null, settleDow: int(0, 6),
       });
     });
@@ -355,7 +356,7 @@ function generate(base) {
     merchants.find((m) => m.district === "Cumilla" && m.category === "SERVICES"),
   ];
   decliners.forEach((m, i) => {
-    m.decline = { start: TODAY - int(32, 40), quietDays: i < 2 ? int(7, 9) : 0 };
+    m.decline = { start: TODAY - int(20, 23), quietDays: i < 2 ? int(7, 9) : 0 };
     m.failRate = 0.05;
     m.rate = Math.max(m.rate, 0.9);
   });
@@ -372,7 +373,8 @@ function generate(base) {
     if (m.demo) return 0.85 + 0.35 * ((day - FIRST_DAY) / (DAYS - 1));
     if (!m.decline || day < m.decline.start) return 1;
     if (TODAY - day < m.decline.quietDays) return 0;
-    return Math.max(0.08, 1 - 0.9 * ((day - m.decline.start) / (TODAY - m.decline.start)));
+    // Falls over ten days, then trickles along at a tenth of its old level.
+    return Math.max(0.1, 1 - (day - m.decline.start) / 10);
   };
 
   /* ── Customers ── */
@@ -759,7 +761,7 @@ function generate(base) {
     const ms = at(FIRST_DAY, 8, int(0, 30));
     schedule(ms, () => {
       const w = W(a.user.id);
-      const amount = Math.floor((w.cashInHand * 0.55) / 100_000) * 100_000;
+      const amount = Math.floor((w.cashInHand * (a === special.nearLimit ? 0.1 : 0.55)) / 100_000) * 100_000;
       post({ type: "SETTLEMENT", sender: AGENT_FLOAT_BANK, receiver: a.party, amount, cashEffect: { userId: a.user.id, delta: -amount }, description: "Float top-up · cash deposited at bank", settlementDirection: "FLOAT_TOP_UP", settlement: "FLOAT_TOP_UP" }, ms);
     });
   }
@@ -874,7 +876,19 @@ async function seed() {
   console.log("Validation passed: balances are whole poisha and never negative; commission rows match.");
 
   if (EMIT) {
-    writeFileSync(EMIT, JSON.stringify({ generatedAt: iso(NOW), ...result.out, demo, specials: result.specials }, null, 0));
+    // Include the demo agent/merchant (with their end balances) so the dataset is self-contained.
+    const demoRecords = { users: [], agentProfiles: [], merchantBusinesses: [], wallets: [] };
+    if (base.demoAgent && demo.agent) {
+      demoRecords.users.push({ ...base.demoAgent.user, isDemo: false });
+      demoRecords.agentProfiles.push({ userId: DEMO_AGENT, agentCode: "AG-10001", outletName: base.demoAgent.outletName, district: demo.agent.district, area: demo.agent.area });
+      demoRecords.wallets.push({ id: "wal_sabbir_tele", userId: DEMO_AGENT, available: demo.agent.end.available, cashInHand: demo.agent.end.cashInHand, savings: 0, pending: 0 });
+    }
+    if (base.demoMerchant && demo.merchant) {
+      demoRecords.users.push({ ...base.demoMerchant.user, isDemo: false });
+      demoRecords.merchantBusinesses.push({ id: "biz_nafiztong", userId: DEMO_MERCHANT, ...base.demoMerchant.business, district: demo.merchant.district, area: demo.merchant.area });
+      demoRecords.wallets.push({ id: "wal_nafiztong", userId: DEMO_MERCHANT, available: demo.merchant.end.available, cashInHand: null, savings: 0, pending: 0 });
+    }
+    writeFileSync(EMIT, JSON.stringify({ generatedAt: iso(NOW), ...result.out, demo, demoRecords, specials: result.specials }, null, 0));
     console.log(`Wrote ${EMIT}`);
   }
   if (DRY) return;
