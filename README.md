@@ -11,16 +11,13 @@ A Mobile Financial Services web app with three isolated customer roles — **Per
 Requirements: Node.js 20.9+ (tested on Node 25), npm, a Supabase project.
 
 1. In the Supabase **SQL Editor**, run `supabase/schema.sql`, then `supabase/seed.sql` (once each — re-running `schema.sql` deletes all data).
-   A database created before a change in `supabase/migrations/` needs those files run once instead, in name order — they are safe to re-run:
-   - `20261003_user_language.sql` — each user's interface language
-   - `20261004_ai_intelligence.sql` — districts on agents/merchants and the `ai_insights` cache (needed for the [intelligence features](#merchant--agent-intelligence))
-   - `20261005_fix_json_strings.sql` — optional cleanup of JSON values saved as strings by older versions
+   A database created before the in-memory cache was added needs `supabase/migrations/20261006_change_counter.sql` run once instead (safe on live data; without it every request reloads the whole database).
 2. `npm install`
 3. `cp .env.example .env.local`, then fill in:
    - `DATABASE_URL` — Supabase → **Connect** → **Direct** → Method **Transaction pooler** (port 6543), with your database password.
    - `AUTH_JWT_SECRET` — any random string of 32+ characters.
    - *Optional:* `GEMINI_API_KEY` and/or `GROQ_API_KEY` for AI-written insight text (see [AI configuration](#ai-configuration)). Without them every insight still works with template text.
-4. *Optional, for the intelligence demo:* `node --env-file=.env.local scripts/seed-synthetic.mjs` — 90 days of synthetic history (see [Synthetic data](#synthetic-data)).
+4. *Optional, demo data:* run `supabase/synthetic-data.sql` in the SQL Editor after `seed.sql` — 4 more accounts per role and 90 days of history for every account, as exported on 2026-10-03. For history that ends today instead, run `node --env-file=.env.local scripts/seed-synthetic.mjs` (see [Synthetic data](#synthetic-data)).
 5. `npm run dev` and open http://localhost:3000.
 
 Other scripts: `npm run build`, `npm start`, `npm run lint`, `npm run typecheck`. Checks without a test framework: `node scripts/check-i18n.mjs`, `node scripts/check-intelligence.mjs`, `node scripts/check-ai.mjs`.
@@ -37,6 +34,14 @@ Transaction PIN for all: **`24680`**. OTP codes are shown on screen by the **dev
 | Admin | `admin@example.com` | `Demo@1234` — 2FA on (OTP at sign-in) |
 
 Wallets start at ৳0; the agent starts with ৳50,000 of cash recorded at the outlet. New accounts are created through `/register` and saved to the database.
+
+`supabase/synthetic-data.sql` adds 4 more accounts per role (same password `demo@1234`, PIN `24680`). Its header lists every phone number.
+
+| Role | Sign in with |
+|---|---|
+| Personal | `01453384498` Arif Sheikh · `01953805977` Rahim Haque · `01355258360` Karim Begum · `01357298253` Rakib Uddin |
+| Agent | `01462061206` Tamim Bhuiyan (Dhaka, fast-growing) · `01364232142` Sharmin Sarkar (Chattogram, near-limit cash-outs) · `01764743977` Mitu Talukder (Gazipur, cash shortfall) · `01765278926` Arif Uddin (Narayanganj, off-hours bursts) |
+| Merchant | `01880438058` Arif Roy (Dhaka, declining) · `01485360573` Hasan Rahman (Chattogram) · `01588238447` Saiful Islam (Gazipur) · `01780178082` Keya Rahman (Narayanganj, declining) |
 
 ### A quick tour
 
@@ -257,22 +262,22 @@ To try the chain from the command line: `node --env-file=.env.local scripts/chec
 ### Synthetic data
 
 ```bash
-node --env-file=.env.local scripts/seed-synthetic.mjs           # seed (needs 20261004_ai_intelligence.sql)
+node --env-file=.env.local scripts/seed-synthetic.mjs           # seed
 node --env-file=.env.local scripts/seed-synthetic.mjs --reset   # remove it again
 node --env-file=.env.local scripts/seed-synthetic.mjs --dry-run # generate and validate only
 ```
 
-* About 300 customers, 25 agents and 40 merchants across 8 districts, with 90 days of history ending today. That is about 7,500 transactions.
-* Every id starts with `syn_` and every synthetic user is `is_demo`. `--reset` deletes only those rows.
+* 4 customers, 4 agents and 4 merchants across 4 districts, with 90 days of history ending today. That is about 1,500 transactions. With the `seed.sql` accounts that makes **5 accounts per role**. It is kept small on purpose: the app loads the whole database, so a large dataset makes every page slow.
+* Every id starts with `syn_` and every synthetic user is `is_demo`. `--reset` deletes those rows, plus any app transaction made later with a synthetic user (for example a cash-out at a synthetic agent), and reverses their effect on the remaining balances.
 * The demo agent and merchant (Sabbir_Tele, Nafiztong) get a district (Dhaka) and history on top of their real balances. `--reset` reverses the history's effect.
 * Fees, commissions and limits come from `policy.ts`, and postings follow the ledger's rules, so every wallet stays whole-poisha and non-negative.
 * The generator is deterministic (fixed seed, days anchored to the run date).
 * **Planted patterns:**
   - weekly seasonality and salary-day cash-out spikes
-  - 5 declining merchants
+  - 2 declining merchants (Dhaka, Narayanganj)
   - an agent with near-limit cash-outs by repeat customers (Chattogram)
   - an agent with off-hours bursts (Narayanganj)
-  - 2 fast-growing agents (Sylhet, Khulna)
+  - a fast-growing agent (Dhaka)
   - an overloaded, underserved district (Gazipur)
 * The seed prints one account per pattern. Every synthetic account uses password `demo@1234` and PIN `24680`.
 
@@ -291,7 +296,7 @@ After running the migration and the seed, with the AI keys set:
    - Sabbir_Tele (`01814557644`) shows the same page for an agent with healthy cash.
 4. **Merchant → Insights** as Nafiztong (`01773519331`).
    - The sales forecast continues the actual line as a dashed line inside its likely-range band.
-   - Below it: busiest hours, the payment mix, and the comparison with similar merchants in Dhaka (medians only, no names).
+   - Below it: busiest hours, the payment mix, and the comparison with the other merchants (medians only, no names).
    - At the top: three recommendations, each chosen by code and worded by the model.
 5. **বাংলা and resilience.** Switch the language toggle to বাংলা: the screens and the AI text come back in Bengali. Then remove the AI keys from `.env.local` and restart. Every number stays the same, and the text switches to the *Automatic summary* templates.
 

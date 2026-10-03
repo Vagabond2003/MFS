@@ -186,7 +186,4 @@ export const httpApi: ApiClient = {
     updateDispute: (id, status, resolution) => request("PATCH", `/admin/disputes/${encodeURIComponent(id)}`, { body: { status, resolution } }),
     auditLogs: (q) => get("/admin/audit-logs", { ...q }),
   },
-  dev: {
-    resetDemoData: notSupported,
-  },
 };

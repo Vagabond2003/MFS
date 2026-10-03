@@ -9,8 +9,10 @@
  *                                                                      (used by scripts/check-intelligence.mjs)
  *
  * What it creates (all ids prefixed `syn_`, all users is_demo = true):
- *   ~300 personal customers, 25 agents and 40 merchants across 8 districts, with
- *   90 days of transactions ending today. Fees, commissions and limits come from
+ *   4 personal customers, 4 agents and 4 merchants across 4 districts, with 90
+ *   days of transactions ending today. With the seed.sql accounts that makes 5 of
+ *   each role — kept small on purpose, since the app loads the whole database into
+ *   memory. Fees, commissions and limits come from
  *   src/services/mock/policy.ts, and every posting is replayed with the same
  *   balance rules as ledger.post(), so final wallets satisfy the ledger
  *   invariants (integer, never negative). Notifications and audit logs are not
@@ -18,13 +20,14 @@
  *
  * The existing demo agent (usr_sabbir_tele) and merchant (usr_nafiztong) get a
  * district and synthetic history on top of their current balances; names,
- * credentials and status are never touched. --reset removes the history,
- * reverses its effect on their balances and clears their district.
+ * credentials and status are never touched. --reset removes the history and
+ * any later app transaction with a synthetic user, reverses their effect on the
+ * remaining accounts' balances and clears the demo district.
  *
  * Planted patterns: weekly seasonality, cash-out spikes on days 1–5 of the month,
- * 5 declining merchants, 2 agents with abnormal patterns (near-limit cash-outs and
- * repeated customers; off-hours bursts), 2 fast-growing agents, and Gazipur as a
- * district with high demand and very few agents/merchants.
+ * 2 declining merchants, 2 agents with abnormal patterns (near-limit cash-outs and
+ * repeated customers; off-hours bursts), 1 fast-growing agent, and Gazipur as a
+ * district whose single agent can't keep up with demand.
  *
  * Deterministic: a fixed-seed RNG; days are anchored to the run date (Asia/Dhaka).
  */
@@ -123,18 +126,16 @@ const DISTRICTS = {
   Khulna: ["Sonadanga", "Boyra", "Khalishpur"],
   Cumilla: ["Kandirpar", "Tomsom Bridge", "Rajganj"],
 };
-// Gazipur: lots of customers, one agent, one merchant — the underserved district.
-const CUSTOMERS_PER_DISTRICT = { Dhaka: 75, Chattogram: 40, Gazipur: 55, Narayanganj: 28, Sylhet: 25, Rajshahi: 25, Khulna: 25, Cumilla: 27 };
-const AGENTS_PER_DISTRICT = { Dhaka: 6, Chattogram: 4, Gazipur: 1, Narayanganj: 3, Sylhet: 3, Rajshahi: 3, Khulna: 3, Cumilla: 2 };
+// 4 customers, 4 agents and 4 merchants: with Ashraful, Sabbir_Tele and Nafiztong
+// (seed.sql, all in Dhaka) that is 5 accounts per role. Gazipur has the most
+// customers for its one agent and one shop — the underserved district.
+const CUSTOMERS_PER_DISTRICT = { Chattogram: 1, Gazipur: 2, Narayanganj: 1 };
+const AGENTS_PER_DISTRICT = { Dhaka: 1, Chattogram: 1, Gazipur: 1, Narayanganj: 1 };
 const MERCHANTS = {
-  Dhaka: ["OTHER", "OTHER", "OTHER", "OTHER", "OTHER", "RESTAURANT", "RESTAURANT", "RESTAURANT", "GROCERY", "GROCERY", "PHARMACY"],
-  Chattogram: ["RESTAURANT", "RESTAURANT", "GROCERY", "GROCERY", "RETAIL", "ECOMMERCE"],
+  Dhaka: ["RESTAURANT"],
+  Chattogram: ["GROCERY"],
   Gazipur: ["GROCERY"],
-  Narayanganj: ["RESTAURANT", "GROCERY", "RETAIL", "PHARMACY", "SERVICES"],
-  Sylhet: ["RESTAURANT", "GROCERY", "RETAIL", "PHARMACY"],
-  Rajshahi: ["RESTAURANT", "GROCERY", "RETAIL", "SERVICES"],
-  Khulna: ["RESTAURANT", "GROCERY", "PHARMACY", "ECOMMERCE", "SERVICES"],
-  Cumilla: ["RESTAURANT", "GROCERY", "RETAIL", "SERVICES"],
+  Narayanganj: ["PHARMACY"],
 };
 const FIRST = ["Rahim", "Karim", "Nusrat", "Farhana", "Tanvir", "Sadia", "Imran", "Mehedi", "Shirin", "Arif", "Jannat", "Sumon", "Rubel", "Lamia", "Fahim", "Tania", "Rakib", "Mitu", "Hasan", "Ayesha", "Nafis", "Shuvo", "Priya", "Ritu", "Jamal", "Kamrul", "Shakil", "Munni", "Rasel", "Sharmin", "Tamim", "Anika", "Habib", "Rokeya", "Saiful", "Nadia", "Faruk", "Shapla", "Masud", "Keya"];
 const LAST = ["Hossain", "Rahman", "Islam", "Ahmed", "Akter", "Khan", "Chowdhury", "Uddin", "Sarkar", "Begum", "Mia", "Sheikh", "Roy", "Das", "Haque", "Talukder", "Mollah", "Bhuiyan", "Sikder", "Biswas"];
@@ -300,19 +301,18 @@ function generate(base) {
   }
   const agentIn = (d) => agents.filter((a) => a.district === d);
   const special = {
-    nearLimit: agentIn("Chattogram")[1],
+    nearLimit: agentIn("Chattogram")[0],
     offHours: agentIn("Narayanganj")[0],
-    risingA: agentIn("Sylhet")[2],
-    risingB: agentIn("Khulna")[1],
+    rising: agentIn("Dhaka")[0],
     gap: agentIn("Gazipur")[0],
   };
   special.nearLimit.role = "anomaly-near-limit";
   special.offHours.role = "anomaly-off-hours";
-  special.risingA.role = special.risingB.role = "rising";
+  special.rising.role = "rising";
   special.gap.role = "service-gap";
-  wallets.get(special.gap.user.id).cashInHand = 6_000_000; // thin cash buffer for its demand
+  wallets.get(special.gap.user.id).cashInHand = 1_500_000; // thin cash buffer for its demand
   wallets.get(special.nearLimit.user.id).cashInHand = 150_000_000; // a large cash desk feeding the near-limit withdrawals
-  for (const a of [special.risingA, special.risingB]) wallets.get(a.user.id).cashInHand = 40_000_000; // growing outlets keep more cash
+  wallets.get(special.rising.user.id).cashInHand = 40_000_000; // a growing outlet keeps more cash
   if (base.demoAgent) {
     const a = base.demoAgent;
     wallets.set(a.user.id, { userId: a.user.id, available: a.wallet.available, savings: 0, pending: 0, cashInHand: a.wallet.cashInHand ?? 0, version: 0, updatedAt: null, demo: true, start: { ...a.wallet } });
@@ -347,16 +347,13 @@ function generate(base) {
   }
   const gazipurShop = merchants.find((m) => m.district === "Gazipur");
   gazipurShop.rate = 2.6; // one shop for a whole district
-  // Five merchants whose activity falls away over the last month (two go quiet for the final week).
+  // Two merchants whose activity falls away over the last month (the first goes quiet for the final week).
   const decliners = [
     merchants.find((m) => m.district === "Dhaka" && m.category === "RESTAURANT"),
-    merchants.find((m) => m.district === "Chattogram" && m.category === "GROCERY"),
-    merchants.find((m) => m.district === "Rajshahi" && m.category === "RETAIL"),
-    merchants.find((m) => m.district === "Khulna" && m.category === "PHARMACY"),
-    merchants.find((m) => m.district === "Cumilla" && m.category === "SERVICES"),
+    merchants.find((m) => m.district === "Narayanganj" && m.category === "PHARMACY"),
   ];
   decliners.forEach((m, i) => {
-    m.decline = { start: TODAY - int(20, 23), quietDays: i < 2 ? int(7, 9) : 0 };
+    m.decline = { start: TODAY - int(20, 23), quietDays: i < 1 ? int(7, 9) : 0 };
     m.failRate = 0.05;
     m.rate = Math.max(m.rate, 0.9);
   });
@@ -381,16 +378,18 @@ function generate(base) {
   const customers = [];
   for (const [district, count] of Object.entries(CUSTOMERS_PER_DISTRICT)) {
     for (let i = 0; i < count; i++) {
-      const verified = chance(0.92);
+      const verified = i === 0 || chance(0.92); // the planted patterns need a verified customer in each district
       const user = addUser({ role: "PERSONAL", name: personName(), phone: phone(5), email: null, status: verified ? "VERIFIED" : "PENDING_VERIFICATION" });
       const area = pick(DISTRICTS[district]);
       out.personalProfiles.push({ userId: user.id, dateOfBirth: dob(), address: `House ${int(1, 120)}, ${area}, ${district}`, nidNumber: verified ? nid() : null, selfieStatus: verified ? "VERIFIED" : "NOT_SUBMITTED" });
       history(user, verified ? [["PENDING_VERIFICATION", "Account created", null, 0], ["VERIFIED", "e-KYC passed (NID + selfie match)", null, 0]] : [["PENDING_VERIFICATION", "Account created", null, 0]]);
-      customers.push({ user, district, party: { userId: user.id, name: user.name, account: user.phone, kind: "PERSONAL" }, level: Math.exp(0.45 * gauss()), salaryDay: int(1, 5) });
+      // Gazipur's customers stand in for a crowded district: they cash out at their one agent far more often.
+      const agentVisits = district === "Gazipur" ? 8 : 1;
+      customers.push({ user, district, party: { userId: user.id, name: user.name, account: user.phone, kind: "PERSONAL" }, level: Math.exp(0.45 * gauss()), salaryDay: int(1, 5), agentVisits });
     }
   }
   const customersIn = (d) => customers.filter((c) => c.district === d);
-  // Each merchant has regulars; Gazipur shoppers also travel to Dhaka shops.
+  // Each merchant has regulars; Gazipur shoppers also travel to Dhaka shops (Dhaka has no synthetic customers of its own).
   for (const m of merchants) {
     const local = customersIn(m.district);
     const pool = m.district === "Dhaka" ? [...local, ...customersIn("Gazipur").slice(0, 20)] : local;
@@ -584,7 +583,7 @@ function generate(base) {
         const amount = taka(14_000 * c.level, 0.3, 3_000, c.user.status === "VERIFIED" ? 40_000 : 12_000) + (chance(0.0125) ? 13 : 0);
         schedule(at(day, int(8, 12), int(0, 59)), () => addMoney(c, amount, at(day, int(8, 12), int(0, 59)), chance(0.55) ? "bank" : pick(MFS)));
       }
-      const cashOutRate = 0.03 * c.level * DOW.CASH_OUT[d] * (salaryWindow ? 2.4 : 0.85);
+      const cashOutRate = 0.03 * c.agentVisits * c.level * DOW.CASH_OUT[d] * (salaryWindow ? 2.4 : 0.85);
       for (let k = poisson(cashOutRate); k > 0; k--) {
         const ms = timeOn(day, HOURS.AGENT);
         const amount = taka(salaryWindow ? 4_500 : 2_800, 0.55, 100, 20_000);
@@ -646,7 +645,8 @@ function generate(base) {
                   : m.category === "SERVICES" ? taka(900, 0.5, 100, 8_000)
                     : taka(450, 0.6, 30, 5_000);
         schedule(ms, () => {
-          const pool = chance(0.62) ? m.regulars : customersIn(m.district);
+          const walkIns = customersIn(m.district);
+          const pool = chance(0.62) || !walkIns.length ? m.regulars : walkIns;
           // Whoever is at the counter: prefer someone who can pay; otherwise they top up first.
           let c = pick(pool);
           for (let tries = 0; tries < 4 && !canAfford(c.user.id, amount); tries++) c = pick(pool);
@@ -785,7 +785,7 @@ function generate(base) {
       agent: base.demoAgent ? { userId: DEMO_AGENT, start: W(DEMO_AGENT).start, end: W(DEMO_AGENT), district: "Dhaka", area: "Mirpur" } : null,
       merchant: base.demoMerchant ? { userId: DEMO_MERCHANT, start: W(DEMO_MERCHANT).start, end: W(DEMO_MERCHANT), district: "Dhaka", area: "Dhanmondi" } : null,
     },
-    specials: { nearLimit: special.nearLimit.user.id, offHours: special.offHours.user.id, rising: [special.risingA.user.id, special.risingB.user.id], serviceGap: special.gap.user.id, decliners: decliners.map((m) => m.user.id) },
+    specials: { nearLimit: special.nearLimit.user.id, offHours: special.offHours.user.id, rising: [special.rising.user.id], serviceGap: special.gap.user.id, decliners: decliners.map((m) => m.user.id) },
     agents,
     merchants,
   };
@@ -863,7 +863,7 @@ async function seed() {
     const agentCols = await columnsOf("agent_profiles");
     const bizCols = await columnsOf("merchant_businesses");
     if (!agentCols.has("district") || !bizCols.has("district")) {
-      console.error("The intelligence migration hasn't been run yet. Run supabase/migrations/20261004_ai_intelligence.sql in the Supabase SQL Editor first.");
+      console.error("This database is older than supabase/schema.sql (no district columns). Rebuild it with schema.sql + seed.sql first (this deletes all data).");
       process.exit(1);
     }
     const [{ n }] = await sqlClient`select count(*)::int as n from users where id like 'syn\\_%'`;
@@ -933,21 +933,30 @@ async function seed() {
 }
 
 async function reset() {
-  const demoIds = [DEMO_AGENT, DEMO_MERCHANT];
+  const hasDistrict = (await columnsOf("agent_profiles")).has("district");
   await sqlClient.begin(async (tx) => {
-    // Undo the synthetic history's effect on the demo accounts (same rules as ledger.post for settled rows).
+    // Removed: the synthetic history, plus any later app transaction with a synthetic user
+    // (e.g. a real customer cashing out at a synthetic agent) — it can't outlive that user.
+    const doomed = tx`(id like 'syn\\_%' or sender_user_id like 'syn\\_%' or receiver_user_id like 'syn\\_%' or commission_user_id like 'syn\\_%'
+                       or cash_effect_user_id like 'syn\\_%' or pending_hold_user_id like 'syn\\_%' or pending_credit_user_id like 'syn\\_%')`;
+    // Undo their effect on the accounts that stay (same rules as ledger.post for settled rows).
     const rows = await tx`select status, amount, sender_fee, receiver_fee, sender_user_id, receiver_user_id, commission_user_id, commission_amount, cash_effect_user_id, cash_effect_delta
-                          from transactions where id like 'syn\\_%' and status in ('SUCCESSFUL', 'REFUNDED')
-                          and (sender_user_id in ${tx(demoIds)} or receiver_user_id in ${tx(demoIds)} or commission_user_id in ${tx(demoIds)} or cash_effect_user_id in ${tx(demoIds)})`;
-    const delta = Object.fromEntries(demoIds.map((d) => [d, { available: 0, cash: 0 }]));
+                          from transactions where ${doomed} and status in ('SUCCESSFUL', 'REFUNDED')`;
+    const delta = new Map();
+    const add = (userId, available, cash = 0) => {
+      if (!userId || userId.startsWith("syn_")) return;
+      const d = delta.get(userId) ?? { available: 0, cash: 0 };
+      d.available += available;
+      d.cash += cash;
+      delta.set(userId, d);
+    };
     for (const r of rows) {
-      if (delta[r.sender_user_id]) delta[r.sender_user_id].available -= Number(r.amount) + Number(r.sender_fee);
-      if (delta[r.receiver_user_id]) delta[r.receiver_user_id].available += Number(r.amount) - Number(r.receiver_fee);
-      if (delta[r.commission_user_id]) delta[r.commission_user_id].available += Number(r.commission_amount);
-      if (delta[r.cash_effect_user_id]) delta[r.cash_effect_user_id].cash += Number(r.cash_effect_delta);
+      add(r.sender_user_id, -(Number(r.amount) + Number(r.sender_fee)));
+      add(r.receiver_user_id, Number(r.amount) - Number(r.receiver_fee));
+      add(r.commission_user_id, Number(r.commission_amount ?? 0));
+      add(r.cash_effect_user_id, 0, Number(r.cash_effect_delta ?? 0));
     }
-    for (const userId of demoIds) {
-      const d = delta[userId];
+    for (const [userId, d] of delta) {
       if (!d.available && !d.cash) continue;
       const [w] = await tx`select available, cash_in_hand from wallets where user_id = ${userId}`;
       if (!w) continue;
@@ -958,23 +967,23 @@ async function reset() {
                version = version + 1, updated_at = now() where user_id = ${userId}`;
     }
     const removed = {};
-    removed.commissions = (await tx`delete from commissions where id like 'syn\\_%'`).count;
-    removed.transactions = (await tx`delete from transactions where id like 'syn\\_%'`).count;
+    removed.commissions = (await tx`delete from commissions where id like 'syn\\_%' or agent_id like 'syn\\_%' or trx_id in (select trx_id from transactions where ${doomed})`).count;
+    removed.transactions = (await tx`delete from transactions where ${doomed}`).count;
     removed.history = (await tx`delete from account_status_history where id like 'syn\\_%'`).count;
     removed.wallets = (await tx`delete from wallets where id like 'syn\\_%'`).count;
     await tx`delete from personal_profiles where user_id like 'syn\\_%'`;
     await tx`delete from agent_profiles where user_id like 'syn\\_%'`;
     await tx`delete from merchant_profiles where user_id like 'syn\\_%'`;
     await tx`delete from merchant_businesses where id like 'syn\\_%'`;
+    // Sessions, notifications, one-time codes etc. of synthetic users go with them (on delete cascade).
     removed.users = (await tx`delete from users where id like 'syn\\_%'`).count;
-    const agentCols = await columnsOf("agent_profiles");
-    if (agentCols.has("district")) {
+    if (hasDistrict) {
       await tx`update agent_profiles set district = null, area = null where user_id = ${DEMO_AGENT}`;
       await tx`update merchant_businesses set district = null, area = null where user_id = ${DEMO_MERCHANT}`;
     }
     const [{ exists }] = await tx`select to_regclass('public.ai_insights') is not null as exists`;
     if (exists) removed.aiInsights = (await tx`delete from ai_insights`).count;
-    console.log(`Removed synthetic data: ${Object.entries(removed).map(([k, v]) => `${k}=${v}`).join(", ")}. Demo balances restored.`);
+    console.log(`Removed synthetic data: ${Object.entries(removed).map(([k, v]) => `${k}=${v}`).join(", ")}. Balances of the remaining accounts restored.`);
   });
 }
 

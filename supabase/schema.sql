@@ -22,7 +22,7 @@
 begin;
 
 drop table if exists
-  ai_insights, idempotency_keys, rate_limits, payment_requests, disputes, audit_logs,
+  app_state, ai_insights, idempotency_keys, rate_limits, payment_requests, disputes, audit_logs,
   sessions, otp_codes, notifications, commissions, transactions, wallets,
   verification_documents, account_status_history, merchant_businesses,
   merchant_profiles, agent_profiles, personal_profiles, users
@@ -420,5 +420,41 @@ alter table payment_requests       enable row level security;
 alter table rate_limits            enable row level security;
 alter table idempotency_keys       enable row level security;
 alter table ai_insights            enable row level security;
+
+-- ───────────────────────── Change counter (lets the app cache the database) ─────────────────────────
+-- Same as supabase/migrations/20261006_change_counter.sql.
+
+create table if not exists app_state (
+  id      int    primary key default 1 check (id = 1),
+  version bigint not null default 0
+);
+insert into app_state (id, version) values (1, 0) on conflict (id) do nothing;
+alter table app_state enable row level security;
+
+create or replace function bump_app_version() returns trigger
+language plpgsql as $$
+begin
+  update app_state set version = version + 1 where id = 1;
+  return null;
+end $$;
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'users', 'personal_profiles', 'agent_profiles', 'merchant_profiles', 'merchant_businesses',
+    'account_status_history', 'verification_documents', 'wallets', 'transactions', 'commissions',
+    'notifications', 'otp_codes', 'sessions', 'audit_logs', 'disputes', 'payment_requests',
+    'rate_limits', 'idempotency_keys', 'ai_insights'
+  ] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('drop trigger if exists %I on %I', t || '_bump_version', t);
+      execute format(
+        'create trigger %I after insert or update or delete or truncate on %I for each statement execute function bump_app_version()',
+        t || '_bump_version', t);
+    end if;
+  end loop;
+end $$;
 
 commit;

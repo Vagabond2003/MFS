@@ -6,14 +6,14 @@ import type {
   DisputeView,
   VerificationApplication,
 } from "@/types/domain";
-import type { AdminApi, DevToolsApi } from "../../contracts";
+import type { AdminApi } from "../../contracts";
 import { ApiError } from "../../errors";
 import { adminStats } from "../analytics";
-import { audit, clearSessionCookie, maskIp, notify, requireCaller } from "../context";
+import { audit, maskIp, notify, requireCaller } from "../context";
 import { randomId } from "../crypto";
 import { settleDue } from "../ledger";
 import type { DbState, DisputeRecord, UserRecord } from "../schema";
-import { read, resetDatabase, write } from "../store";
+import { read, write } from "../store";
 import { toDocumentView, toProfileView, toTransactionView, toWalletView } from "../views";
 import { filterTransactions, paginate } from "./account";
 
@@ -317,12 +317,5 @@ export const admin: AdminApi = {
         }));
       return paginate(rows, page, pageSize ?? 20);
     });
-  },
-};
-
-export const dev: DevToolsApi = {
-  async resetDemoData() {
-    clearSessionCookie();
-    await resetDatabase();
   },
 };

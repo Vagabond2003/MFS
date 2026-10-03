@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { SessionClaims } from "@/lib/auth/session-token";
 import type { Lang } from "@/lib/i18n/core";
 import { ApiError, toApiError } from "@/services/errors";
-import { admin, dev } from "@/services/mock/handlers/admin";
+import { admin } from "@/services/mock/handlers/admin";
 import { agent, lookup, merchant, notifications, personal, profile, security, transactions, wallet } from "@/services/mock/handlers/account";
 import { auth, registration, uploads } from "@/services/mock/handlers/identity";
 import { insights } from "@/services/mock/handlers/insights";
@@ -38,7 +38,6 @@ const GROUPS: Record<string, object> = {
   insights,
   lookup,
   admin,
-  dev,
 };
 
 export interface CallContext {
