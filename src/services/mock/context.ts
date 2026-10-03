@@ -162,6 +162,22 @@ function queueEmail(email: OutgoingEmail) {
   }
 }
 
+function queueSms(sms: { to: string; message: string }) {
+  try {
+    requestEnv().queueSms(sms);
+  } catch {
+    // no request context
+  }
+}
+
+function smsEnabled() {
+  try {
+    return requestEnv().smsEnabled();
+  } catch {
+    return false;
+  }
+}
+
 function emailEnabled() {
   try {
     return requestEnv().emailEnabled();
@@ -236,12 +252,16 @@ export async function issueOtp(
     verifiedAt: null,
     consumedAt: null,
   });
-  await providers.sms.send(input.destination, `Your Kosh verification code is ${code}. Do not share it with anyone.`);
-
-  // The code also goes by email to the owner of the destination phone (for an
-  // agent-assisted cash out that is the customer, not the agent) — or, at
-  // registration, to the email typed on the form.
+  // The code goes by SMS (and email, below) to the owner of the destination
+  // phone — for an agent-assisted cash out that is the customer, not the
+  // agent — or, at registration, to the number and email typed on the form.
   const owner = db.users.find((u) => u.phone === input.destination) ?? null;
+  const text = `Your Kosh verification code is ${code}. It expires in ${Math.round(SECURITY.otpTtlSeconds / 60)} minutes. Never share it with anyone.`;
+  // Demo and synthetic accounts have made-up numbers that may belong to real people: never text them.
+  const texted = smsEnabled() && /^01[3-9]\d{8}$/.test(input.destination) && !owner?.isDemo;
+  if (texted) queueSms({ to: input.destination, message: text });
+  else await providers.sms.send(input.destination, text);
+
   const email = owner ? owner.email : (input.email ?? null);
   const emailed = isDeliverableEmail(email) && emailEnabled();
   if (emailed) queueEmail({ kind: "OTP", to: email, lang: owner?.language ?? requestEnv().lang(), name: owner?.name ?? null, code, purpose: input.purpose });

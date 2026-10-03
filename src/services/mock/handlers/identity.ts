@@ -324,11 +324,10 @@ export const registration: RegistrationApi = {
       if (db.users.some((u) => u.phone === phone)) {
         throw new ApiError("CONFLICT", "This mobile number is already registered. Try signing in instead.");
       }
-      // Anyone can start a sign-up, so emailing a typed address is limited per address and per network.
-      if (email) {
-        consumeRateLimit(db, `otp-email:${email.toLowerCase()}`, 3, 15 * 60_000);
-        consumeRateLimit(db, `otp-ip:${requestIp()}`, 10, 15 * 60_000);
-      }
+      // Anyone can start a sign-up, so texting a typed number and emailing a typed address
+      // are limited per network and per address (the number has its own OTP limit).
+      consumeRateLimit(db, `otp-ip:${requestIp()}`, 10, 15 * 60_000);
+      if (email) consumeRateLimit(db, `otp-email:${email.toLowerCase()}`, 3, 15 * 60_000);
       return issueOtp(db, { purpose: "REGISTRATION", destination: phone, userId: null, context: `register:${phone}`, email });
     });
   },

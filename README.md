@@ -22,6 +22,7 @@ Requirements: Node.js 20.9+ (tested on Node 25), npm, a Supabase project.
 3. `cp .env.example .env.local`, then fill in:
    - `DATABASE_URL` — Supabase → **Connect** → **Direct** → Method **Transaction pooler** (port 6543), with your database password.
    - `AUTH_JWT_SECRET` — any random string of 32+ characters.
+   - *Optional:* `SMS_NET_BD_API_KEY` to text OTP codes (see [SMS](#sms)).
    - *Optional:* Brevo SMTP (`BREVO_SMTP_*`) and a verified sender in `EMAIL_FROM` to email OTP codes and account emails (see [Email](#email)).
    - *Optional:* `GEMINI_API_KEY` and/or `GROQ_API_KEY` for AI-written insight text (see [AI configuration](#ai-configuration)). Without them every insight still works with template text.
 4. *Optional, for the intelligence demo:* `node --env-file=.env.local scripts/seed-synthetic.mjs` — 90 days of synthetic history (see [Synthetic data](#synthetic-data)).
@@ -299,6 +300,20 @@ After running the migration and the seed, with the AI keys set:
    - Below it: busiest hours, the payment mix, and the comparison with similar merchants in Dhaka (medians only, no names).
    - At the top: three recommendations, each chosen by code and worded by the model.
 5. **বাংলা and resilience.** Switch the language toggle to বাংলা: the screens and the AI text come back in Bengali. Then remove the AI keys from `.env.local` and restart. Every number stays the same, and the text switches to the *Automatic summary* templates.
+
+## SMS
+
+OTP codes go out by text message through **sms.net.bd** (`src/server/sms.ts`) when `SMS_NET_BD_API_KEY` is set. Otherwise the development SMS provider logs them and shows them on screen.
+
+* The code is texted to the phone it's for: the account's own number, the customer's number for an agent-assisted cash out, or the number typed at sign-up. Sign-up requests are limited to 10 per network and to the usual per-number OTP limit, every 15 minutes.
+* **Demo and synthetic accounts are never texted.** Their numbers are made up and may belong to real people.
+* Like email, messages are queued and sent after the request succeeds. Failures are logged with the gateway's error code only.
+* New sms.net.bd accounts can only text their own registered number until the first recharge (error 421).
+
+| Variable | Notes |
+|---|---|
+| `SMS_NET_BD_API_KEY` | sms.net.bd → API |
+| `SMS_SENDER_ID` | Optional approved sender ID |
 
 ## Email
 

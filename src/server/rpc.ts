@@ -11,6 +11,7 @@ import { setRequestEnvProvider, type OutgoingEmail } from "@/services/mock/runti
 import { setStoreBackend } from "@/services/mock/store";
 import { dbStore } from "./db-store";
 import { deliverEmails, emailConfigured } from "./email";
+import { deliverSms, smsConfigured } from "./sms";
 
 /**
  * Server-side execution of the API handlers (NEXT_PUBLIC_API_MODE=supabase).
@@ -52,6 +53,8 @@ export interface CallContext {
   origin: string;
   /** Emails queued by the call; sent after it succeeds. */
   outbox: OutgoingEmail[];
+  /** Text messages queued by the call; sent after it succeeds. */
+  smsOutbox: { to: string; message: string }[];
   /** Set when a handler signs the user in or out. */
   cookie: { action: "set"; claims: SessionClaims; remember: boolean } | { action: "clear" } | null;
 }
@@ -80,6 +83,10 @@ setRequestEnvProvider(() => {
     queueEmail: (email) => {
       ctx.outbox.push(email);
     },
+    smsEnabled: smsConfigured,
+    queueSms: (sms) => {
+      ctx.smsOutbox.push(sms);
+    },
   };
 });
 
@@ -98,6 +105,7 @@ export async function runCall(ctx: CallContext, fn: (...args: unknown[]) => Prom
       const data = await fn(...args);
       // Sent after the call (and its transaction) succeeded; delivery problems are logged, not surfaced.
       if (ctx.outbox.length) void deliverEmails(ctx.outbox.splice(0), ctx.origin);
+      if (ctx.smsOutbox.length) void deliverSms(ctx.smsOutbox.splice(0));
       return { ok: true as const, data };
     } catch (err) {
       if (err instanceof ApiError) return { ok: false as const, error: err };

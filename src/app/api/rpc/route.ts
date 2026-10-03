@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
     lang,
     origin: process.env.APP_URL || request.nextUrl.origin,
     outbox: [],
+    smsOutbox: [],
     cookie: null,
   };
 

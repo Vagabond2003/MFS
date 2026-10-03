@@ -30,6 +30,10 @@ export interface RequestEnv {
   emailEnabled(): boolean;
   /** Queues an email to send once the call has succeeded. */
   queueEmail(email: OutgoingEmail): void;
+  /** Whether a real SMS gateway is configured. */
+  smsEnabled(): boolean;
+  /** Queues a text message to send once the call has succeeded. */
+  queueSms(sms: { to: string; message: string }): void;
 }
 
 // Kept on globalThis: dev-server hot reload can re-run this module without
