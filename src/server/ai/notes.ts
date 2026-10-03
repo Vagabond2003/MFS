@@ -1,11 +1,9 @@
 import { createHash } from "node:crypto";
 import type { Lang } from "@/lib/i18n/core";
-import { ApiError } from "@/services/errors";
-import { consumeRateLimit } from "@/services/mock/context";
+import { recordAiNote } from "@/server/db-store";
 import { randomId } from "@/services/mock/crypto";
 import { dhakaDay } from "@/services/mock/intelligence/common";
 import type { DbState } from "@/services/mock/schema";
-import { write } from "@/services/mock/store";
 import type { AiMeta } from "@/types/domain";
 import { explain, type Explanation } from "./explain";
 import type { FactsOf, InsightKind, OutputOf } from "./kinds";
@@ -88,30 +86,29 @@ function explainTemplateOnly<K extends InsightKind>(plan: NotePlan<K>) {
   return explain(plan.kind, plan.facts, plan.lang, { models: [] });
 }
 
-/** Counts the attempt against the user's budget and caches model wording for the rest of the day. */
+/**
+ * Counts the model calls against the user's budget and caches model wording
+ * for the rest of the day. A small targeted write (see recordAiNote), so a
+ * cache entry never holds the app-wide write lock for a full database load.
+ */
 async function remember<K extends InsightKind>(plan: NotePlan<K>, result: Explanation<OutputOf<K>>) {
-  await write((db) => {
-    try {
-      consumeRateLimit(db, rateKey(plan.userId), AI_CALLS_PER_HOUR, HOUR_MS);
-    } catch (e) {
-      if (!(e instanceof ApiError)) throw e;
-    }
-    if (result.source !== "AI" || !db.aiInsights) return;
-    const now = new Date();
-    const stale = now.getTime() - 2 * 86_400_000;
-    // Keep one entry per user, kind and language, and nothing older than two days.
-    db.aiInsights = db.aiInsights.filter(
-      (r) => Date.parse(r.createdAt) > stale && !(r.userId === plan.userId && r.kind === plan.kind && r.language === plan.lang),
-    );
-    db.aiInsights.push({
-      id: randomId("ain"),
-      userId: plan.userId,
-      kind: plan.kind,
-      language: plan.lang,
-      inputHash: plan.hash,
-      payload: { ...result.output },
-      model: result.model ?? "unknown",
-      createdAt: now.toISOString(),
-    });
+  if (!result.attempts) return;
+  await recordAiNote({
+    rateKey: rateKey(plan.userId),
+    limit: AI_CALLS_PER_HOUR,
+    windowMs: HOUR_MS,
+    note:
+      result.source === "AI"
+        ? {
+            id: randomId("ain"),
+            userId: plan.userId,
+            kind: plan.kind,
+            language: plan.lang,
+            inputHash: plan.hash,
+            payload: { ...result.output },
+            model: result.model ?? "unknown",
+            createdAt: new Date().toISOString(),
+          }
+        : null,
   });
 }

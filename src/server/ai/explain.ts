@@ -19,6 +19,8 @@ export interface Explanation<O> {
   source: "AI" | "TEMPLATE";
   /** Model that wrote the text; null for the template. */
   model: string | null;
+  /** Model calls made (0 when the template answered without trying one). */
+  attempts: number;
 }
 
 /** Longest a request waits for wording before using the template. */
@@ -67,10 +69,12 @@ export async function explain<K extends InsightKind>(
   opts: { models?: ModelSpec[] } = {},
 ): Promise<Explanation<OutputOf<K>>> {
   const def = KINDS[kind];
+  let attempts = 0;
   const template = (): Explanation<OutputOf<K>> => ({
     output: (def.template as (f: FactsOf<K>, t: ReturnType<typeof translator>, l: Lang) => OutputOf<K>)(facts, translator(lang), lang),
     source: "TEMPLATE",
     model: null,
+    attempts,
   });
 
   const nothingToSay = (def as { nothingToSay?: (f: FactsOf<K>) => boolean }).nothingToSay;
@@ -89,10 +93,11 @@ export async function explain<K extends InsightKind>(
     const budget = Math.min(model.timeoutMs, DEADLINE_MS - (Date.now() - started) - later * RESERVE_MS);
     if (budget < MIN_ATTEMPT_MS) continue;
     try {
+      attempts++;
       const reply = await callModel(model, system, prompt, budget);
       const output = validateReply(schemaFor(kind) as unknown as ZodType<OutputOf<K>>, reply, facts, expectedItems);
       if ((lang === "bn") !== BENGALI_LETTERS.test(JSON.stringify(output))) throw new Error("reply is in the wrong language");
-      return { output, source: "AI", model: model.id };
+      return { output, source: "AI", model: model.id, attempts };
     } catch (e) {
       const reason = e instanceof ModelError ? e.reason : "invalid";
       // Skip a model for a while after it rate-limits or stalls; a bad reply only costs this request.
