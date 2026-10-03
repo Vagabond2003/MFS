@@ -3,18 +3,11 @@ import { ROLES, type Role } from "@/types/domain";
 /**
  * Session token handling for the route guard (src/proxy.ts).
  *
- * PRODUCTION (`NEXT_PUBLIC_API_MODE=http`)
- *   The backend sets an httpOnly, Secure, SameSite=Lax cookie containing a
- *   signed JWT `{ sid, role, exp }`. The proxy verifies the signature with
- *   AUTH_JWT_SECRET (HS256) before trusting the role claim. The backend still
- *   re-checks the session and role on every API call.
- *
- * DEVELOPMENT (`NEXT_PUBLIC_API_MODE=mock`, the default)
- *   The in-browser mock API cannot set httpOnly cookies or hold a secret, so
- *   it writes an UNSIGNED token prefixed with `mock.`. The proxy accepts it
- *   only in mock mode. Tampering with it changes nothing important: the mock
- *   API resolves the real role from its session table, and the client guard
- *   redirects on any mismatch.
+ * The session cookie is an httpOnly, SameSite=Lax cookie holding a JWT
+ * `{ sid, role, exp }` signed with AUTH_JWT_SECRET (HS256). It is set by this
+ * app's /api/rpc route (or by an external backend in `http` mode). The proxy
+ * verifies the signature before trusting the role claim, and the API
+ * re-checks the session and role against the database on every call.
  */
 
 export const SESSION_COOKIE = "kosh_session";
@@ -30,53 +23,33 @@ function isRole(v: unknown): v is Role {
   return typeof v === "string" && (ROLES as readonly string[]).includes(v);
 }
 
-function base64UrlEncode(text: string) {
-  const bytes = new TextEncoder().encode(text);
-  let bin = "";
-  bytes.forEach((b) => (bin += String.fromCharCode(b)));
-  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function base64UrlDecode(input: string) {
-  const b64 = input.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(input.length / 4) * 4, "=");
-  const bin = atob(b64);
-  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-}
-
-export function encodeMockToken(claims: SessionClaims) {
-  return `mock.${base64UrlEncode(JSON.stringify(claims))}`;
-}
-
-export function decodeMockToken(token: string): SessionClaims | null {
-  if (!token.startsWith("mock.")) return null;
-  try {
-    const parsed = JSON.parse(base64UrlDecode(token.slice(5)));
-    if (typeof parsed?.sid !== "string" || !isRole(parsed.role) || typeof parsed.exp !== "number") {
-      return null;
-    }
-    return parsed as SessionClaims;
-  } catch {
-    return null;
-  }
-}
-
-export type ApiMode = "mock" | "http";
+/**
+ * supabase (default) — API runs on this Next.js server against PostgreSQL (Supabase).
+ * http               — separate REST backend that signs the same JWT.
+ */
+export type ApiMode = "supabase" | "http";
 
 export function getApiMode(): ApiMode {
-  return process.env.NEXT_PUBLIC_API_MODE === "http" ? "http" : "mock";
+  return process.env.NEXT_PUBLIC_API_MODE === "http" ? "http" : "supabase";
+}
+
+/** Server-only: signs the session JWT verified by readSessionClaims(). */
+export async function signSessionToken(claims: SessionClaims): Promise<string> {
+  const secret = process.env.AUTH_JWT_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error("AUTH_JWT_SECRET must be set to a random string of at least 32 characters.");
+  }
+  const { SignJWT } = await import("jose");
+  return new SignJWT({ sid: claims.sid, role: claims.role })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(claims.exp)
+    .sign(new TextEncoder().encode(secret));
 }
 
 /** Server-side (proxy) verification of the session cookie. */
 export async function readSessionClaims(token: string | undefined): Promise<SessionClaims | null> {
   if (!token) return null;
-  const nowSec = Math.floor(Date.now() / 1000);
-
-  if (getApiMode() === "mock") {
-    const claims = decodeMockToken(token);
-    return claims && claims.exp > nowSec ? claims : null;
-  }
-
   const secret = process.env.AUTH_JWT_SECRET;
   if (!secret) return null; // fail closed
   try {

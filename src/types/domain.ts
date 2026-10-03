@@ -7,6 +7,8 @@
  * phone numbers, password/PIN hashes) never appear here.
  */
 
+import type { Lang } from "@/lib/i18n/core";
+
 /** Integer amount in minor units (poisha). ৳1.00 === 100. Never floats. */
 export type Money = number;
 
@@ -33,6 +35,8 @@ export interface CurrentUser {
   email: string | null;
   status: AccountStatus;
   twoFactorEnabled: boolean;
+  /** Saved interface language; null when the account has no saved preference. */
+  language: Lang | null;
   /** Development/demo account flag — rendered as a visible badge. */
   isDemo: boolean;
   createdAt: string;
@@ -260,7 +264,8 @@ export type OperationRequest =
       paymentCode?: string;
       reference?: string;
     }
-  | { kind: "ADD_MONEY"; sourceId: string; amount: Money }
+  /** `walletNumber` is required when the source is a mobile wallet (bKash, Nagad, …). */
+  | { kind: "ADD_MONEY"; sourceId: string; amount: Money; walletNumber?: string }
   | { kind: "AGENT_CASH_IN"; customer: string; amount: Money }
   | { kind: "AGENT_CASH_OUT"; customer: string; amount: Money }
   | { kind: "AGENT_RECHARGE"; operator: Operator; number: string; amount: Money }
@@ -294,6 +299,8 @@ export interface OperationQuote {
   requiresOtp: boolean;
   /** Who receives the OTP: the signed-in user, or the customer (agent-assisted cash out). */
   otpTarget: "SELF" | "CUSTOMER" | null;
+  /** Masked number the code will be sent to. */
+  otpDestination: string | null;
   otpReason: string | null;
   summary: SummaryRow[];
   warnings: string[];
@@ -460,7 +467,8 @@ export interface SettlementView {
 
 export interface FundingSource {
   id: string;
-  kind: "BANK" | "CARD";
+  /** MFS = an external mobile wallet (bKash, Nagad, Rocket, Upay), verified per transfer with a one-time code. */
+  kind: "BANK" | "CARD" | "MFS";
   label: string;
   masked: string;
 }
@@ -592,4 +600,266 @@ export interface UserQuery {
   search?: string;
   page?: number;
   pageSize?: number;
+}
+
+/* ───────────────────────── Merchant & agent intelligence ─────────────────────────
+ * Every number below is computed on the server from the ledger
+ * (src/services/mock/intelligence). AI text only explains these numbers.
+ * Days and hours are Asia/Dhaka. Peer figures are aggregates only.
+ */
+
+export interface ForecastPoint {
+  /** yyyy-mm-dd (Dhaka) */
+  date: string;
+  /** e.g. "7 Oct" */
+  label: string;
+  value: number;
+  /** ~80% band */
+  low: number;
+  high: number;
+}
+
+export interface SeriesForecast {
+  /** Today first, then the next 7 days. */
+  points: ForecastPoint[];
+  /** Sun..Sat multipliers learned from history (1 = an average day). */
+  weekdayIndex: number[];
+  /** Days 1–5 of the month vs other days; null when there isn't enough history. */
+  monthStartUplift: number | null;
+  /** Underlying trend, % per week. */
+  trendPerWeekPct: number;
+  /** Complete days of history used. */
+  historyDays: number;
+}
+
+export interface LiquidityDay {
+  date: string;
+  label: string;
+  cashIn: Money;
+  cashOut: Money;
+  /** Recharge and bill payments collected in cash. */
+  otherCashIn: Money;
+  commission: Money;
+  openingCash: Money;
+  closingCash: Money;
+  openingFloat: Money;
+  closingFloat: Money;
+  /** A busy day (upper band) would need more cash than the projected opening cash. */
+  cashAtRisk: boolean;
+  /** A busy day would need more e-money float than the projected opening float. */
+  floatAtRisk: boolean;
+}
+
+export interface LiquiditySuggestion {
+  /** FLOAT_TOP_UP: deposit outlet cash to e-money · ADD_CASH: bring more cash to the counter · SETTLE_TO_BANK: move surplus e-money out */
+  kind: "FLOAT_TOP_UP" | "ADD_CASH" | "SETTLE_TO_BANK";
+  amount: Money;
+  /** Act before this date (yyyy-mm-dd). */
+  byDate: string;
+}
+
+export interface AgentLiquidity {
+  asOf: string;
+  cashInHand: Money;
+  float: Money;
+  days: LiquidityDay[];
+  shortfall: { kind: "CASH" | "FLOAT"; date: string; label: string; opening: Money; demand: Money } | null;
+  suggestions: LiquiditySuggestion[];
+  /** Reconstructed end-of-day balances, last 14 days. */
+  history: { date: string; label: string; cash: Money; float: Money }[];
+  /** Days in the last 30 that ended with very little cash, or with cash-outs turned away. */
+  lowCashDays30: number;
+  cashOutForecast: SeriesForecast;
+  cashInForecast: SeriesForecast;
+}
+
+export interface AgentPerformance {
+  asOf: string;
+  /** Last 28 days vs the 28 before. Volume = cash in + cash out + recharge + bill payments. */
+  volume28: Money;
+  volumePrev28: Money;
+  growthPct: number | null;
+  commission28: Money;
+  commissionPrev28: Money;
+  transactions28: number;
+  failureRate28: number;
+  lowCashDays30: number;
+  /** Standing among agents (no peer identities): share of peers with lower volume. */
+  rank: { percentile: number; peers: number; scope: "DISTRICT" | "ALL" };
+  weekly: { week: string; volume: Money; commission: Money }[];
+  mix: { type: "CASH_IN" | "CASH_OUT" | "MOBILE_RECHARGE" | "BILL_PAYMENT"; volume: Money; share: number }[];
+}
+
+export interface MerchantDemand {
+  asOf: string;
+  /** Last 28 complete days. */
+  actual: { date: string; label: string; revenue: Money; count: number }[];
+  revenueForecast: SeriesForecast;
+  countForecast: SeriesForecast;
+  /** Average successful payments per hour of day over the last 30 days (24 entries). */
+  hours: { hour: number; count: number; revenue: Money }[];
+  busiestHours: number[];
+  busiestWeekday: number | null;
+  /** Revenue share by payment method and by customer type, last 30 days. */
+  breakdown: { method: { method: PaymentMethod; share: number }[]; repeatShare: number; newShare: number };
+  /** Forecast revenue for the next 7 days (excluding today). */
+  nextWeek: { value: Money; low: Money; high: Money };
+}
+
+export type BenchmarkMetric = "revenue" | "avgTicket" | "repeatRate" | "qrShare" | "failureRate";
+
+export interface MerchantBenchmark {
+  asOf: string;
+  windowDays: number;
+  /** Which peers: same category & district, else same category, else all merchants. */
+  scope: "CATEGORY_DISTRICT" | "CATEGORY" | "ALL";
+  peerCount: number;
+  category: BusinessCategory;
+  district: string | null;
+  metrics: {
+    key: BenchmarkMetric;
+    value: number;
+    peerMedian: number;
+    /** 0–100, higher is better for the merchant (failure rate is inverted). */
+    percentile: number;
+    higherIsBetter: boolean;
+  }[];
+}
+
+export type ChurnFactorKey = "RECENCY" | "COUNT_DROP" | "VALUE_DROP" | "FAILURE_RATE" | "REFUND_RATE";
+
+export interface ChurnFactor {
+  key: ChurnFactorKey;
+  points: number;
+  /** Raw measure: days, a 0–1 drop, or a 0–1 rate. */
+  value: number;
+}
+
+export interface MerchantChurnRisk {
+  userId: string;
+  merchantId: string;
+  businessName: string;
+  category: BusinessCategory;
+  district: string | null;
+  score: number;
+  level: "HIGH" | "MEDIUM" | "LOW";
+  factors: ChurnFactor[];
+  daysSinceLastPayment: number | null;
+  count14: number;
+  prevCount14: number;
+  value14: Money;
+  prevValue14: Money;
+}
+
+export type AgentFlagCode = "NEAR_LIMIT_CASH_OUTS" | "REPEATED_CUSTOMER" | "OFF_HOURS_ACTIVITY" | "VOLUME_SPIKE";
+
+export interface AgentFlag {
+  code: AgentFlagCode;
+  severity: "HIGH" | "MEDIUM";
+  /** The agent's measure (share 0–1, or a count for REPEATED_CUSTOMER). */
+  value: number;
+  peerMedian: number;
+  /** Same measure over the agent's own previous 8 weeks; null without history. */
+  baseline: number | null;
+  /** Transactions behind the flag (last 28 days). */
+  evidence: number;
+}
+
+export interface AgentIntelligence {
+  userId: string;
+  agentCode: string;
+  outletName: string;
+  district: string | null;
+  volume28: Money;
+  /** Volume, last 28 days vs the 28 before. */
+  growthPct: number | null;
+  transactions28: number;
+  /** Transactions, last 28 days vs the 28 before. */
+  transactionsGrowthPct: number | null;
+  flags: AgentFlag[];
+  rising: boolean;
+  serviceGap: { lowCashDays30: number; failureRate28: number } | null;
+}
+
+export interface DistrictCoverage {
+  district: string;
+  agents: number;
+  merchants: number;
+  /** Distinct customers served by service points in the district, last 30 days. */
+  customers30: number;
+  transactions30: number;
+  volume30: Money;
+  customersPerAgent: number | null;
+  customersPerMerchant: number | null;
+  /** Higher = more underserved relative to the network median. */
+  underservedScore: number;
+  rank: number;
+  /** Extra agents needed to bring customers per agent down to the network median. */
+  agentsNeeded: number;
+}
+
+/* ───────────── AI wording ───────────── */
+
+/** Where an insight's wording came from. Figures are always computed in code; only the words vary. */
+export interface AiMeta {
+  /** AI: written by a language model from the computed figures · TEMPLATE: fixed wording, no model. */
+  source: "AI" | "TEMPLATE";
+  model: string | null;
+  generatedAt: string;
+  language: "en" | "bn";
+}
+
+export interface AiText extends AiMeta {
+  text: string;
+}
+
+export interface AiRecommendations extends AiMeta {
+  items: { title: string; detail: string }[];
+}
+
+/* ───────────── Insights API views (figures + wording) ───────────── */
+
+export type MerchantSignalCode = "WIN_BACK" | "REDUCE_FAILURES" | "MONTH_START" | "BUSY_DAY_AHEAD" | "PROMOTE_QR" | "BUILD_LOYALTY" | "PEAK_HOURS";
+
+export interface AgentLiquidityView extends AgentLiquidity {
+  ai: AiText;
+}
+
+export interface AgentPerformanceView extends AgentPerformance {
+  ai: AiText;
+}
+
+export interface MerchantDemandView extends MerchantDemand {
+  ai: AiText;
+}
+
+export interface MerchantBenchmarkView extends MerchantBenchmark {
+  ai: AiText;
+}
+
+export interface MerchantRecommendationsView {
+  asOf: string;
+  /** What each recommendation is about, in the same order as `ai.items`. */
+  topics: MerchantSignalCode[];
+  ai: AiRecommendations;
+}
+
+export interface ChurnRiskView {
+  asOf: string;
+  /** Highest risk first. */
+  merchants: MerchantChurnRisk[];
+  ai: AiText;
+}
+
+export interface AgentIntelligenceView {
+  asOf: string;
+  agents: AgentIntelligence[];
+  ai: AiText;
+}
+
+export interface LocationCoverageView {
+  asOf: string;
+  /** Most underserved first. */
+  districts: DistrictCoverage[];
+  ai: AiText;
 }

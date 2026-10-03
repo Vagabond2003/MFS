@@ -8,6 +8,8 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
+  Line,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -18,6 +20,8 @@ import {
 import { Table2 } from "lucide-react";
 import { cn, formatCount, formatMoney, formatMoneyCompact } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { useI18n } from "@/hooks/use-i18n";
+import { localizeMonths } from "@/lib/i18n/core";
 
 /**
  * Chart system
@@ -55,10 +59,11 @@ interface TooltipLikeProps {
 }
 
 function SeriesTooltip({ active, payload, label, series, format }: TooltipLikeProps & { series: Series[]; format: ValueFormat }) {
+  const { lang } = useI18n();
   if (!active || !payload?.length) return null;
   return (
     <div className="min-w-40 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-float">
-      <p className="mb-1.5 text-xs font-medium text-slate-500">{String(label ?? "")}</p>
+      <p className="mb-1.5 text-xs font-medium text-slate-500">{localizeMonths(lang, String(label ?? ""))}</p>
       <ul className="space-y-1">
         {series.map((s, i) => {
           const p = payload.find((x) => x.dataKey === s.key);
@@ -90,6 +95,7 @@ export function ChartCard({
   className,
   refreshing,
   action,
+  legend,
 }: {
   title: string;
   description?: string;
@@ -102,7 +108,10 @@ export function ChartCard({
   className?: string;
   refreshing?: boolean;
   action?: React.ReactNode;
+  /** Replaces the automatic legend (e.g. a forecast's line styles and band). */
+  legend?: React.ReactNode;
 }) {
+  const { t, lang } = useI18n();
   const [showTable, setShowTable] = useState(false);
   return (
     <Card className={cn("flex flex-col", className)}>
@@ -123,12 +132,14 @@ export function ChartCard({
             )}
           >
             <Table2 className="h-3.5 w-3.5" aria-hidden />
-            Table
+            {t("Table")}
           </button>
         </div>
       </div>
-      {series.length >= 2 && (
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 px-5 pt-3 sm:px-6" aria-label="Legend">
+      {legend ? (
+        <div className="px-5 pt-3 sm:px-6">{legend}</div>
+      ) : series.length >= 2 && (
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 px-5 pt-3 sm:px-6" aria-label={t("Legend")}>
           {series.map((s, i) => (
             <li key={s.key} className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
               <span
@@ -147,7 +158,7 @@ export function ChartCard({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wider text-slate-500">
-                  <th className="py-2 font-semibold">Period</th>
+                  <th className="py-2 font-semibold">{t("Period")}</th>
                   {series.map((s) => (
                     <th key={s.key} className="py-2 text-right font-semibold">
                       {s.label}
@@ -158,7 +169,7 @@ export function ChartCard({
               <tbody>
                 {data.map((row) => (
                   <tr key={String(row[xKey])} className="border-b border-slate-50">
-                    <td className="py-1.5 text-slate-600">{String(row[xKey])}</td>
+                    <td className="py-1.5 text-slate-600">{localizeMonths(lang, String(row[xKey]))}</td>
                     {series.map((s) => (
                       <td key={s.key} className="tabular py-1.5 text-right font-medium text-slate-900">
                         {fmtFull(Number(row[s.key] ?? 0), format)}
@@ -192,11 +203,12 @@ export function ColumnChart({
   format?: ValueFormat;
   height?: number;
 }) {
+  const { lang } = useI18n();
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 12, right: 12, bottom: 0, left: 0 }} barGap={2} barCategoryGap="22%">
         <CartesianGrid vertical={false} stroke={GRID} />
-        <XAxis dataKey={xKey} tickLine={false} axisLine={{ stroke: AXIS }} tick={{ fontSize: 12, fill: INK_MUTED }} interval="preserveStartEnd" minTickGap={8} />
+        <XAxis dataKey={xKey} tickLine={false} axisLine={{ stroke: AXIS }} tick={{ fontSize: 12, fill: INK_MUTED }} interval="preserveStartEnd" minTickGap={8} tickFormatter={(v) => localizeMonths(lang, String(v))} />
         <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: INK_MUTED }} tickFormatter={(v: number) => fmtAxis(v, format)} width={60} />
         <Tooltip
           cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
@@ -225,11 +237,12 @@ export function TrendChart({
   format?: ValueFormat;
   height?: number;
 }) {
+  const { lang } = useI18n();
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
         <CartesianGrid vertical={false} stroke={GRID} />
-        <XAxis dataKey={xKey} tickLine={false} axisLine={{ stroke: AXIS }} tick={{ fontSize: 12, fill: INK_MUTED }} interval="preserveStartEnd" minTickGap={12} />
+        <XAxis dataKey={xKey} tickLine={false} axisLine={{ stroke: AXIS }} tick={{ fontSize: 12, fill: INK_MUTED }} interval="preserveStartEnd" minTickGap={12} tickFormatter={(v) => localizeMonths(lang, String(v))} />
         <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: INK_MUTED }} tickFormatter={(v: number) => fmtAxis(v, format)} width={60} />
         <Tooltip
           cursor={{ stroke: "#94a3b8", strokeWidth: 1 }}
@@ -263,7 +276,7 @@ export function DonutCard({
   data,
   format = "money",
   centerLabel,
-  emptyText = "No data for this period",
+  emptyText,
 }: {
   title: string;
   description?: string;
@@ -272,9 +285,10 @@ export function DonutCard({
   centerLabel?: string;
   emptyText?: string;
 }) {
+  const { t } = useI18n();
   // Max 4 slices: anything beyond folds into "Other" (no generated hues).
   const sorted = [...data].sort((a, b) => b.value - a.value);
-  const slices = sorted.length > 4 ? [...sorted.slice(0, 3), { label: "Other", value: sorted.slice(3).reduce((s, d) => s + d.value, 0) }] : sorted;
+  const slices = sorted.length > 4 ? [...sorted.slice(0, 3), { label: t("Other"), value: sorted.slice(3).reduce((s, d) => s + d.value, 0) }] : sorted;
   const total = slices.reduce((s, d) => s + d.value, 0);
 
   return (
@@ -284,7 +298,7 @@ export function DonutCard({
         {description && <p className="mt-0.5 text-sm text-slate-500">{description}</p>}
       </div>
       {total === 0 ? (
-        <p className="flex flex-1 items-center justify-center px-6 py-12 text-sm text-slate-500">{emptyText}</p>
+        <p className="flex flex-1 items-center justify-center px-6 py-12 text-sm text-slate-500">{emptyText ?? t("No data for this period")}</p>
       ) : (
         <div className="flex flex-1 flex-col items-center gap-5 px-5 pb-5 pt-3 @lg:flex-row sm:px-6">
           <div className="relative h-44 w-44 shrink-0">
@@ -297,14 +311,14 @@ export function DonutCard({
                 </Pie>
                 <Tooltip
                   content={(p) => {
-                    const t = p as TooltipLikeProps;
-                    const item = t.payload?.[0];
-                    if (!t.active || !item) return null;
+                    const tip = p as TooltipLikeProps;
+                    const item = tip.payload?.[0];
+                    if (!tip.active || !item) return null;
                     const row = item.payload as { label: string; value: number };
                     return (
                       <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-float">
                         <span className="tabular font-semibold text-slate-900">{fmtFull(row.value, format)}</span>{" "}
-                        <span className="text-xs text-slate-500">{row.label}</span>
+                        <span className="text-xs text-slate-500">{t(row.label)}</span>
                       </div>
                     );
                   }}
@@ -320,7 +334,7 @@ export function DonutCard({
             {slices.map((s, i) => (
               <li key={s.label} className="flex items-center gap-2.5 text-sm">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: SERIES_COLORS[i] }} aria-hidden />
-                <span className="min-w-0 flex-1 truncate text-slate-600">{s.label}</span>
+                <span className="min-w-0 flex-1 truncate text-slate-600">{t(s.label)}</span>
                 <span className="tabular font-semibold text-slate-900">{fmtFull(s.value, format)}</span>
                 <span className="tabular w-11 text-right text-xs text-slate-500">{((s.value / total) * 100).toFixed(0)}%</span>
               </li>
@@ -329,5 +343,160 @@ export function DonutCard({
         </div>
       )}
     </Card>
+  );
+}
+
+/* ───────────── Legend keys for custom legends ───────────── */
+
+export function LegendKey({ color, label, shape = "line" }: { color: string; label: string; shape?: "line" | "dashed" | "band" | "dot" }) {
+  return (
+    <li className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+      {shape === "band" ? (
+        <span className="h-2.5 w-3.5 rounded-[3px]" style={{ background: color, opacity: 0.18 }} aria-hidden />
+      ) : shape === "dot" ? (
+        <span className="h-2 w-2 rounded-full" style={{ background: color }} aria-hidden />
+      ) : (
+        <span className="w-3.5 border-t-2" style={{ borderColor: color, borderStyle: shape === "dashed" ? "dashed" : "solid" }} aria-hidden />
+      )}
+      {label}
+    </li>
+  );
+}
+
+/* ───────────── Forecast: actual line, dashed continuation, likely-range band ───────────── */
+
+export interface ForecastRow {
+  label: string;
+  actual?: number;
+  forecast?: number;
+  /** [low, high] — the likely range. */
+  band?: [number, number];
+}
+
+/**
+ * Joins history and forecast into one series: the forecast line starts at the
+ * last actual point so it reads as a dashed continuation.
+ */
+export function forecastRows(actual: { label: string; value: number }[], forecast: { label: string; value: number; low: number; high: number }[]): ForecastRow[] {
+  const rows: ForecastRow[] = actual.map((a) => ({ label: a.label, actual: a.value }));
+  const last = rows[rows.length - 1];
+  if (last && last.actual !== undefined) Object.assign(last, { forecast: last.actual, band: [last.actual, last.actual] });
+  for (const f of forecast) rows.push({ label: f.label, forecast: f.value, band: [f.low, f.high] });
+  return rows;
+}
+
+export function ForecastChart({ rows, format = "money", height = 280, labels }: { rows: ForecastRow[]; format?: ValueFormat; height?: number; labels: { actual: string; forecast: string; range: string } }) {
+  const { lang } = useI18n();
+  const color = SERIES_COLORS[0];
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <ComposedChart data={rows} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
+        <CartesianGrid vertical={false} stroke={GRID} />
+        <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: AXIS }} tick={{ fontSize: 12, fill: INK_MUTED }} interval="preserveStartEnd" minTickGap={14} tickFormatter={(v) => localizeMonths(lang, String(v))} />
+        <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: INK_MUTED }} tickFormatter={(v: number) => fmtAxis(v, format)} width={60} />
+        <Tooltip
+          cursor={{ stroke: "#94a3b8", strokeWidth: 1 }}
+          content={(p) => {
+            const tip = p as TooltipLikeProps;
+            const row = tip.payload?.[0]?.payload as ForecastRow | undefined;
+            if (!tip.active || !row) return null;
+            const isForecast = row.actual === undefined;
+            return (
+              <div className="min-w-40 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-float">
+                <p className="mb-1 text-xs font-medium text-slate-500">{localizeMonths(lang, row.label)}</p>
+                <p className="flex items-center gap-2">
+                  <span className="tabular font-semibold text-slate-900">{fmtFull((isForecast ? row.forecast : row.actual) ?? 0, format)}</span>
+                  <span className="text-xs text-slate-500">{isForecast ? labels.forecast : labels.actual}</span>
+                </p>
+                {isForecast && row.band && (
+                  <p className="tabular mt-0.5 text-xs text-slate-500">
+                    {labels.range}: {fmtFull(row.band[0], format)} – {fmtFull(row.band[1], format)}
+                  </p>
+                )}
+              </div>
+            );
+          }}
+        />
+        <Area dataKey="band" stroke="none" fill={color} fillOpacity={0.14} isAnimationActive={false} activeDot={false} />
+        <Line dataKey="actual" stroke={color} strokeWidth={2} dot={false} activeDot={{ r: 4.5, strokeWidth: 2, stroke: "#fff" }} isAnimationActive={false} />
+        <Line dataKey="forecast" stroke={color} strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 4.5, strokeWidth: 2, stroke: "#fff" }} isAnimationActive={false} />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+/* ───────────── Balance projection: history solid, projection dashed, at-risk days marked ───────────── */
+
+export interface ProjectionRow {
+  label: string;
+  [key: string]: string | number | boolean | undefined;
+}
+
+export function ProjectionChart({
+  rows,
+  lines,
+  height = 280,
+}: {
+  rows: ProjectionRow[];
+  /** history/projection keys per line; `risk` names a boolean key that marks a day red. */
+  lines: { history: string; projection: string; risk?: string; label: string }[];
+  height?: number;
+}) {
+  const { lang } = useI18n();
+  const RISK = "#e11d48";
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <ComposedChart data={rows} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
+        <CartesianGrid vertical={false} stroke={GRID} />
+        <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: AXIS }} tick={{ fontSize: 12, fill: INK_MUTED }} interval="preserveStartEnd" minTickGap={14} tickFormatter={(v) => localizeMonths(lang, String(v))} />
+        <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: INK_MUTED }} tickFormatter={(v: number) => fmtAxis(v, "money")} width={60} />
+        <Tooltip
+          cursor={{ stroke: "#94a3b8", strokeWidth: 1 }}
+          content={(p) => {
+            const tip = p as TooltipLikeProps;
+            const row = tip.payload?.[0]?.payload as ProjectionRow | undefined;
+            if (!tip.active || !row) return null;
+            return (
+              <div className="min-w-40 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-float">
+                <p className="mb-1.5 text-xs font-medium text-slate-500">{localizeMonths(lang, row.label)}</p>
+                <ul className="space-y-1">
+                  {lines.map((l, i) => {
+                    const v = row[l.history] ?? row[l.projection];
+                    if (typeof v !== "number") return null;
+                    const risky = l.risk && row[l.risk] === true;
+                    return (
+                      <li key={l.label} className="flex items-center gap-2">
+                        <span className="h-0.5 w-3 rounded-full" style={{ background: SERIES_COLORS[i] }} aria-hidden />
+                        <span className={cn("tabular font-semibold", risky ? "text-rose-600" : "text-slate-900")}>{fmtFull(v, "money")}</span>
+                        <span className="text-xs text-slate-500">{l.label}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          }}
+        />
+        {lines.flatMap((l, i) => [
+          <Line key={`${l.history}-h`} dataKey={l.history} stroke={SERIES_COLORS[i]} strokeWidth={2} dot={false} isAnimationActive={false} />,
+          <Line
+            key={`${l.projection}-p`}
+            dataKey={l.projection}
+            stroke={SERIES_COLORS[i]}
+            strokeWidth={2}
+            strokeDasharray="5 4"
+            isAnimationActive={false}
+            dot={(props: { cx?: number; cy?: number; payload?: ProjectionRow; index?: number }) => {
+              const risky = l.risk && props.payload?.[l.risk] === true;
+              return risky && props.cx !== undefined && props.cy !== undefined ? (
+                <circle key={`${l.projection}-${props.index}`} cx={props.cx} cy={props.cy} r={4.5} fill={RISK} stroke="#fff" strokeWidth={1.5} />
+              ) : (
+                <g key={`${l.projection}-${props.index}`} />
+              );
+            }}
+          />,
+        ])}
+      </ComposedChart>
+    </ResponsiveContainer>
   );
 }

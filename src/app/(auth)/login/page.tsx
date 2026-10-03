@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
 import { Suspense } from "react";
 import { LoginForm } from "@/features/auth/login-form";
+import { titled } from "@/lib/i18n/server";
 
-export const metadata: Metadata = { title: "Login" };
+export const generateMetadata = titled("Login");
 
 export default function LoginPage() {
   return (

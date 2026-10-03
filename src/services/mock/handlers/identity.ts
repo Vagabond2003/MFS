@@ -10,6 +10,7 @@ import {
 } from "@/lib/validation";
 import { maskPhone, normalizePhone } from "@/lib/utils";
 import type { AccountStatus, DocumentType, Role, SessionInfo } from "@/types/domain";
+import type { Lang } from "@/lib/i18n/core";
 import type { AuthApi, RegistrationApi, UploadApi, UploadPurpose } from "../../contracts";
 import { ApiError } from "../../errors";
 import { providers } from "../../providers";
@@ -256,7 +257,7 @@ function assertUnique(db: DbState, phone: string, email: string | null | undefin
   }
 }
 
-async function newUser(input: { role: Role; name: string; phone: string; email: string | null; password: string; pin: string; status: AccountStatus }): Promise<UserRecord> {
+async function newUser(input: { role: Role; name: string; phone: string; email: string | null; password: string; pin: string; status: AccountStatus; language: Lang }): Promise<UserRecord> {
   const now = new Date().toISOString();
   return {
     id: randomId("usr"),
@@ -268,6 +269,7 @@ async function newUser(input: { role: Role; name: string; phone: string; email: 
     pinHash: await hashSecret(input.pin),
     status: input.status,
     twoFactorEnabled: false,
+    language: input.language,
     isDemo: false,
     failedLoginCount: 0,
     lockedUntil: null,
@@ -329,7 +331,7 @@ export const registration: RegistrationApi = {
       const err = await checkOtp(db, { challengeId: input.otpChallengeId, code: input.otpCode, purpose: "REGISTRATION", context: `register:${input.phone}` });
       if (err) return { error: err };
       assertUnique(db, input.phone, input.email || null);
-      const user = await newUser({ role: "PERSONAL", name: input.fullName, phone: input.phone, email: input.email || null, password: input.password, pin: input.pin, status: eKycPassed ? "VERIFIED" : "PENDING_VERIFICATION" });
+      const user = await newUser({ role: "PERSONAL", name: input.fullName, phone: input.phone, email: input.email || null, password: input.password, pin: input.pin, status: eKycPassed ? "VERIFIED" : "PENDING_VERIFICATION", language: input.language });
       db.users.push(user);
       addWallet(db, user);
       db.personalProfiles.push({
@@ -360,7 +362,7 @@ export const registration: RegistrationApi = {
       const err = await checkOtp(db, { challengeId: input.otpChallengeId, code: input.otpCode, purpose: "REGISTRATION", context: `register:${input.phone}` });
       if (err) return { error: err };
       assertUnique(db, input.phone, input.email);
-      const user = await newUser({ role: "AGENT", name: input.fullName, phone: input.phone, email: input.email, password: input.password, pin: input.pin, status: "APPLICATION_SUBMITTED" });
+      const user = await newUser({ role: "AGENT", name: input.fullName, phone: input.phone, email: input.email, password: input.password, pin: input.pin, status: "APPLICATION_SUBMITTED", language: input.language });
       db.users.push(user);
       addWallet(db, user);
       let agentCode = "";
@@ -398,7 +400,7 @@ export const registration: RegistrationApi = {
       const err = await checkOtp(db, { challengeId: input.otpChallengeId, code: input.otpCode, purpose: "REGISTRATION", context: `register:${input.phone}` });
       if (err) return { error: err };
       assertUnique(db, input.phone, input.email);
-      const user = await newUser({ role: "MERCHANT", name: input.ownerName, phone: input.phone, email: input.email, password: input.password, pin: input.pin, status: "PENDING" });
+      const user = await newUser({ role: "MERCHANT", name: input.ownerName, phone: input.phone, email: input.email, password: input.password, pin: input.pin, status: "PENDING", language: input.language });
       db.users.push(user);
       addWallet(db, user);
       let merchantId = "";

@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
 import { AdminTransactions } from "@/features/admin/operations";
+import { titled } from "@/lib/i18n/server";
 
-export const metadata: Metadata = { title: "All transactions" };
+export const generateMetadata = titled("All transactions");
 
 export default function Page() {
   return <AdminTransactions />;

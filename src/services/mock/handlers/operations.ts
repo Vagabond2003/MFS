@@ -10,7 +10,7 @@ import type {
 } from "@/types/domain";
 import type { OperationsApi } from "../../contracts";
 import { ApiError } from "../../errors";
-import { BILLERS, providers } from "../../providers";
+import { BILLERS, MFS_SOURCES, providers } from "../../providers";
 import { audit, checkOtp, issueOtp, notify, requireCaller } from "../context";
 import { verifySecret } from "../crypto";
 import { post, settleDue, walletOf, type PostInput } from "../ledger";
@@ -38,7 +38,7 @@ interface Resolved {
   user: UserRecord;
   quote: OperationQuote;
   posting: PostInput;
-  otp: { destination: string; purpose: OtpPurpose; context: string } | null;
+  otp: { destination: string; purpose: OtpPurpose; context: string; reason?: string } | null;
   paymentRequest: PaymentRequestRecord | null;
   refundOf: TransactionRecord | null;
   gatewaySource: string | null;
@@ -190,7 +190,7 @@ function resolve(db: DbState, user: UserRecord, req: OperationRequest): Resolved
         sender: me,
         receiver: selfParty(db, merchant),
         amount,
-        receiverFee: fees.receiverFee,
+        senderFee: fees.senderFee,
         paymentMethod: paymentRequest ? "QR_SCAN" : "MERCHANT_ID",
         description: req.reference?.trim() || `Payment to ${selfParty(db, merchant).name}`,
         reference: req.reference?.trim() || paymentRequest?.note || null,
@@ -202,8 +202,20 @@ function resolve(db: DbState, user: UserRecord, req: OperationRequest): Resolved
         src_bank_demo: { userId: null, name: "Demo Bank — Savings", account: "•••• 4521", kind: "BANK" },
         src_card_test: { userId: null, name: "Test Visa card", account: "•••• 1111", kind: "BANK" },
       };
-      const source = sources[req.sourceId];
-      if (!source) throw new ApiError("VALIDATION", "Choose a linked bank account or card.");
+      const wallet = MFS_SOURCES.find((s) => s.id === req.sourceId);
+      let source = sources[req.sourceId];
+      if (wallet) {
+        // External wallets aren't linked: the customer authorises each pull with a code sent to that wallet number.
+        const walletNumber = requirePhone(req.walletNumber ?? "", `${wallet.label} number`);
+        source = { userId: null, name: wallet.label, account: walletNumber, kind: "EXTERNAL" };
+        otp = {
+          destination: walletNumber,
+          purpose: "TRANSACTION",
+          context: "",
+          reason: `Enter the code sent to your ${wallet.label} number ${maskPhone(walletNumber)} to approve this transfer.`,
+        };
+      }
+      if (!source) throw new ApiError("VALIDATION", "Choose a mobile wallet, bank account or card.");
       gatewaySource = req.sourceId;
       posting = { type: "ADD_MONEY", sender: source, receiver: me, amount, description: `Add Money from ${source.name}` };
       break;
@@ -336,8 +348,11 @@ function resolve(db: DbState, user: UserRecord, req: OperationRequest): Resolved
       counterparty: { name: counterparty.name, account: display(counterparty), kind: counterparty.kind },
       requiresOtp: !!otp,
       otpTarget: otp ? (otp.purpose === "CUSTOMER_CASH_OUT" ? "CUSTOMER" : "SELF") : null,
+      otpDestination: otp ? maskPhone(otp.destination) : null,
       otpReason: otp
-        ? otp.purpose === "CUSTOMER_CASH_OUT"
+        ? otp.reason
+          ? otp.reason
+          : otp.purpose === "CUSTOMER_CASH_OUT"
           ? `The customer must approve with the code sent to ${maskPhone(otp.destination)}.`
           : `Transactions of ${formatMoney(OTP_STEP_UP_THRESHOLD, { whole: true })} or more need a one-time code.`
         : null,

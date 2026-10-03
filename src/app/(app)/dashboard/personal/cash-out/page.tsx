@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
 import { CashOutView } from "@/features/personal/flows";
+import { titled } from "@/lib/i18n/server";
 
-export const metadata: Metadata = { title: "Cash Out" };
+export const generateMetadata = titled("Cash Out");
 
 export default function Page() {
   return <CashOutView />;

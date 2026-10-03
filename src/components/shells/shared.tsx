@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, CheckCheck, FlaskConical, LogOut, MonitorSmartphone, RefreshCw, UserRound, X } from "lucide-react";
+import { Bell, CheckCheck, LogOut, MonitorSmartphone, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, Popover } from "@/components/ui/popover";
 import { ConfirmDialog, Sheet } from "@/components/ui/modal";
 import { DemoBadge } from "@/components/ui/badge";
 import { invalidate, useApi } from "@/hooks/use-api";
 import { useAuth, useCurrentUser } from "@/hooks/use-auth";
+import { useI18n } from "@/hooks/use-i18n";
 import { api, errorMessage } from "@/services";
 import { ROLE_LABEL } from "@/lib/auth/access";
 import { cn, formatRelative } from "@/lib/utils";
@@ -24,59 +25,24 @@ export function useThemeClass(theme: string) {
   }, [theme]);
 }
 
-/* ───────────── Demo environment banner ───────────── */
-
-export function DemoBanner() {
-  const [confirm, setConfirm] = useState(false);
-  const [hidden, setHidden] = useState(false);
-  if (api.mode !== "mock" || hidden) return null;
-  return (
-    <div className="no-print relative z-40 flex items-center justify-center gap-2 bg-amber-100 px-10 py-1.5 text-center text-xs text-amber-900">
-      <FlaskConical className="hidden h-3.5 w-3.5 shrink-0 sm:block" aria-hidden />
-      <span>
-        <strong>Demo environment</strong> — mock API, fictional data stored in this browser.
-      </span>
-      <button type="button" onClick={() => setConfirm(true)} className="inline-flex items-center gap-1 font-semibold underline underline-offset-2 hover:no-underline">
-        <RefreshCw className="h-3 w-3" aria-hidden /> Reset data
-      </button>
-      <button type="button" onClick={() => setHidden(true)} className="absolute right-2 grid h-6 w-6 place-items-center rounded hover:bg-amber-200" aria-label="Hide demo banner">
-        <X className="h-3.5 w-3.5" />
-      </button>
-      <ConfirmDialog
-        open={confirm}
-        onClose={() => setConfirm(false)}
-        title="Reset demo data?"
-        description="This wipes everything created in this browser (registrations, transactions, approvals) and restores the original demo dataset. You'll be signed out."
-        confirmLabel="Reset and sign out"
-        tone="danger"
-        onConfirm={async () => {
-          await api.dev.resetDemoData();
-          // Hard navigation clears all in-memory state after the reset.
-          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-          window.location.assign("/login");
-        }}
-      />
-    </div>
-  );
-}
-
 /* ───────────── Notification bell ───────────── */
 
 export function NotificationBell({ tone = "light" }: { tone?: "light" | "dark" }) {
+  const { t } = useI18n();
   const router = useRouter();
   const count = useApi(() => api.notifications.unreadCount(), [], { tags: ["notifications"], pollMs: 30_000 });
   const unread = count.data ?? 0;
 
   return (
     <Popover
-      label="Notifications"
+      label={t("Notifications")}
       className="w-[min(92vw,380px)]"
       trigger={({ toggle, open }) => (
         <button
           type="button"
           onClick={toggle}
           aria-expanded={open}
-          aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
+          aria-label={unread ? t("Notifications, {n} unread", { n: unread }) : t("Notifications")}
           className={cn(
             "relative grid h-10 w-10 place-items-center rounded-xl transition",
             tone === "dark" ? "text-slate-300 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900",
@@ -97,11 +63,12 @@ export function NotificationBell({ tone = "light" }: { tone?: "light" | "dark" }
 }
 
 function NotificationPreview({ close, onOpenAll }: { close: () => void; onOpenAll: () => void }) {
+  const { t, lang } = useI18n();
   const list = useApi(() => api.notifications.list({ page: 1, pageSize: 6 }), [], { tags: ["notifications"] });
   return (
     <div>
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-        <p className="text-sm font-semibold text-slate-900">Notifications</p>
+        <p className="text-sm font-semibold text-slate-900">{t("Notifications")}</p>
         <button
           type="button"
           className="inline-flex items-center gap-1 text-xs font-semibold text-accent-700 hover:underline"
@@ -110,12 +77,12 @@ function NotificationPreview({ close, onOpenAll }: { close: () => void; onOpenAl
             invalidate("notifications");
           }}
         >
-          <CheckCheck className="h-3.5 w-3.5" aria-hidden /> Mark all read
+          <CheckCheck className="h-3.5 w-3.5" aria-hidden /> {t("Mark all read")}
         </button>
       </div>
       <ul className="scroll-thin max-h-96 divide-y divide-slate-100 overflow-y-auto">
-        {list.loading && <li className="px-4 py-6 text-center text-sm text-slate-500">Loading…</li>}
-        {list.data?.items.length === 0 && <li className="px-4 py-8 text-center text-sm text-slate-500">You&apos;re all caught up.</li>}
+        {list.loading && <li className="px-4 py-6 text-center text-sm text-slate-500">{t("Loading…")}</li>}
+        {list.data?.items.length === 0 && <li className="px-4 py-8 text-center text-sm text-slate-500">{t("You're all caught up.")}</li>}
         {list.data?.items.map((n) => (
           <li key={n.id}>
             <Link
@@ -129,11 +96,11 @@ function NotificationPreview({ close, onOpenAll }: { close: () => void; onOpenAl
               <NotificationIcon type={n.type} />
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                  <span className="truncate">{n.title}</span>
-                  {!n.read && <span className="h-2 w-2 shrink-0 rounded-full bg-accent-600" aria-label="Unread" />}
+                  <span className="truncate">{t(n.title)}</span>
+                  {!n.read && <span className="h-2 w-2 shrink-0 rounded-full bg-accent-600" aria-label={t("Unread")} />}
                 </p>
-                <p className="line-clamp-2 text-xs text-slate-500">{n.body}</p>
-                <p className="mt-1 text-[11px] text-slate-400">{formatRelative(n.createdAt)}</p>
+                <p className="line-clamp-2 text-xs text-slate-500">{t(n.body)}</p>
+                <p className="mt-1 text-[11px] text-slate-400">{formatRelative(n.createdAt, lang)}</p>
               </div>
             </Link>
           </li>
@@ -147,7 +114,7 @@ function NotificationPreview({ close, onOpenAll }: { close: () => void; onOpenAl
         }}
         className="w-full border-t border-slate-100 py-2.5 text-center text-sm font-semibold text-accent-700 hover:bg-slate-50"
       >
-        View all notifications
+        {t("View all notifications")}
       </button>
     </div>
   );
@@ -156,6 +123,7 @@ function NotificationPreview({ close, onOpenAll }: { close: () => void; onOpenAl
 /* ───────────── User menu ───────────── */
 
 export function UserMenu({ tone = "light", subtitle }: { tone?: "light" | "dark"; subtitle?: string }) {
+  const { t } = useI18n();
   const user = useCurrentUser();
   const { signOut } = useAuth();
   const [confirmAll, setConfirmAll] = useState(false);
@@ -164,20 +132,20 @@ export function UserMenu({ tone = "light", subtitle }: { tone?: "light" | "dark"
   return (
     <>
       <Popover
-        label="Account menu"
+        label={t("Account menu")}
         className="w-72"
         trigger={({ toggle, open }) => (
           <button
             type="button"
             onClick={toggle}
             aria-expanded={open}
-            aria-label="Account menu"
+            aria-label={t("Account menu")}
             className={cn("flex items-center gap-2.5 rounded-xl p-1 pr-2 transition", tone === "dark" ? "hover:bg-white/10" : "hover:bg-slate-100")}
           >
             <Avatar name={displayName} />
             <span className="hidden min-w-0 text-left lg:block">
               <span className={cn("block max-w-36 truncate text-sm font-semibold", tone === "dark" ? "text-white" : "text-slate-900")}>{displayName}</span>
-              <span className={cn("block text-xs", tone === "dark" ? "text-slate-400" : "text-slate-500")}>{subtitle ?? `${ROLE_LABEL[user.role]} account`}</span>
+              <span className={cn("block text-xs", tone === "dark" ? "text-slate-400" : "text-slate-500")}>{subtitle ?? t("{role} account", { role: t(ROLE_LABEL[user.role]) })}</span>
             </span>
           </button>
         )}
@@ -192,23 +160,23 @@ export function UserMenu({ tone = "light", subtitle }: { tone?: "light" | "dark"
                   {user.isDemo && <DemoBadge />}
                 </p>
                 <p className="tabular truncate text-xs text-slate-500">{user.phone}</p>
-                <p className="mt-0.5 text-xs font-medium text-accent-700">{ROLE_LABEL[user.role]} account</p>
+                <p className="mt-0.5 text-xs font-medium text-accent-700">{t("{role} account", { role: t(ROLE_LABEL[user.role]) })}</p>
               </div>
             </div>
             <div className="p-1.5">
               <Link href="/profile" onClick={close} className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-                <UserRound className="h-4 w-4 text-slate-400" aria-hidden /> Profile & security
+                <UserRound className="h-4 w-4 text-slate-400" aria-hidden /> {t("Profile & security")}
               </Link>
               <Link href="/profile?tab=sessions" onClick={close} className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-                <MonitorSmartphone className="h-4 w-4 text-slate-400" aria-hidden /> Devices & sessions
+                <MonitorSmartphone className="h-4 w-4 text-slate-400" aria-hidden /> {t("Devices & sessions")}
               </Link>
             </div>
             <div className="border-t border-slate-100 p-1.5">
               <button type="button" onClick={() => { close(); void signOut(); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
-                <LogOut className="h-4 w-4 text-slate-400" aria-hidden /> Sign out
+                <LogOut className="h-4 w-4 text-slate-400" aria-hidden /> {t("Sign out")}
               </button>
               <button type="button" onClick={() => { close(); setConfirmAll(true); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50">
-                <LogOut className="h-4 w-4" aria-hidden /> Sign out of all devices
+                <LogOut className="h-4 w-4" aria-hidden /> {t("Sign out of all devices")}
               </button>
             </div>
           </div>
@@ -217,9 +185,9 @@ export function UserMenu({ tone = "light", subtitle }: { tone?: "light" | "dark"
       <ConfirmDialog
         open={confirmAll}
         onClose={() => setConfirmAll(false)}
-        title="Sign out everywhere?"
-        description="This ends every active session for your account, including this one."
-        confirmLabel="Sign out all devices"
+        title={t("Sign out everywhere?")}
+        description={t("This ends every active session for your account, including this one.")}
+        confirmLabel={t("Sign out all devices")}
         tone="danger"
         onConfirm={async () => {
           try {
@@ -236,13 +204,14 @@ export function UserMenu({ tone = "light", subtitle }: { tone?: "light" | "dark"
 /* ───────────── Sidebar nav list ───────────── */
 
 export function SidebarNav({ sections, tone = "light", onNavigate }: { sections: NavSection[]; tone?: "light" | "dark"; onNavigate?: () => void }) {
+  const { t } = useI18n();
   const pathname = usePathname();
   return (
-    <nav className="space-y-6" aria-label="Main">
+    <nav className="space-y-6" aria-label={t("Main")}>
       {sections.map((section, i) => (
         <div key={section.title ?? i}>
           {section.title && (
-            <p className={cn("mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider", tone === "dark" ? "text-slate-500" : "text-slate-400")}>{section.title}</p>
+            <p className={cn("mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider", tone === "dark" ? "text-slate-500" : "text-slate-400")}>{t(section.title)}</p>
           )}
           <ul className="space-y-0.5">
             {section.items.map((item) => {
@@ -266,7 +235,7 @@ export function SidebarNav({ sections, tone = "light", onNavigate }: { sections:
                     )}
                   >
                     <Icon className={cn("h-[18px] w-[18px] shrink-0", !active && (tone === "dark" ? "text-slate-500 group-hover:text-slate-300" : "text-slate-400 group-hover:text-slate-600"))} aria-hidden />
-                    {item.label}
+                    {t(item.label)}
                   </Link>
                 </li>
               );
@@ -293,6 +262,7 @@ export function MobileBottomNav({
   sheetItems: NavItem[];
   tone?: "light" | "dark";
 }) {
+  const { t } = useI18n();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const left = center ? items.slice(0, 2) : items;
@@ -313,7 +283,7 @@ export function MobileBottomNav({
         )}
       >
         <Icon className="h-[22px] w-[22px]" aria-hidden />
-        {item.label}
+        {t(item.label)}
       </Link>
     );
   };
@@ -321,7 +291,7 @@ export function MobileBottomNav({
   return (
     <>
       <nav
-        aria-label="Primary"
+        aria-label={t("Primary")}
         className={cn(
           "no-print fixed inset-x-0 bottom-0 z-40 border-t pb-[env(safe-area-inset-bottom)] lg:hidden",
           tone === "dark" ? "border-white/10 bg-slate-950/95 backdrop-blur" : "border-slate-200 bg-white/95 backdrop-blur",
@@ -334,7 +304,7 @@ export function MobileBottomNav({
               <span className="-mt-5 grid h-14 w-14 place-items-center rounded-2xl bg-accent-600 text-accent-fg shadow-lg ring-4 ring-white">
                 <CenterIcon className="h-6 w-6" aria-hidden />
               </span>
-              {center.label}
+              {t(center.label)}
             </button>
           ) : null}
           {right.map(tab)}
@@ -350,7 +320,7 @@ export function MobileBottomNav({
                   <span key={i} className="rounded-[2px] bg-current" />
                 ))}
               </span>
-              More
+              {t("More")}
             </button>
           )}
         </div>
@@ -365,7 +335,7 @@ export function MobileBottomNav({
                   <span className="grid h-11 w-11 place-items-center rounded-xl bg-accent-100 text-accent-700">
                     <Icon className="h-5 w-5" aria-hidden />
                   </span>
-                  {item.label}
+                  {t(item.label)}
                 </Link>
               </li>
             );

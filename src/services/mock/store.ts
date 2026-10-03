@@ -1,104 +1,44 @@
 import { ApiError } from "../errors";
-import { DB_VERSION, type DbState } from "./schema";
+import type { DbState } from "./schema";
 
 /**
- * In-browser persistence for the mock server.
+ * Persistence for the API handlers. The data lives in PostgreSQL (Supabase);
+ * the server installs src/server/db-store.ts as the backend at startup.
  *
  * - `read()`  gives handlers a consistent snapshot.
- * - `write()` emulates a serialisable database transaction: writes are queued
- *   (one at a time, like a row lock on the wallet), the handler mutates a
- *   *copy* of the state, invariants are checked, and only then is the copy
- *   committed and persisted. Any throw rolls the whole thing back, so a
- *   balance change can never be half-applied.
+ * - `write()` is one database transaction: writes are serialised, the
+ *   handler mutates a copy, invariants are checked, and only then is it
+ *   committed. Any throw rolls the whole thing back, so a balance change can
+ *   never be half-applied.
  */
-
-const STORAGE_KEY = "kosh.mock-db";
-let state: DbState | null = null;
-let loading: Promise<DbState> | null = null;
-let queue: Promise<unknown> = Promise.resolve();
-
-function storage(): Storage | null {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage;
-  } catch {
-    return null;
-  }
+export interface StoreBackend {
+  read<T>(fn: (db: DbState) => T): Promise<T>;
+  write<T>(fn: (draft: DbState) => T | Promise<T>): Promise<T>;
+  reset(): Promise<void>;
 }
 
-function persist(db: DbState) {
-  try {
-    storage()?.setItem(STORAGE_KEY, JSON.stringify(db));
-  } catch {
-    // Quota or private mode — the session keeps working in memory.
-  }
+// Kept on globalThis so a hot-reloaded copy of this module still finds the backend.
+const g = globalThis as unknown as { __koshStoreBackend?: StoreBackend };
+
+export function setStoreBackend(next: StoreBackend) {
+  g.__koshStoreBackend = next;
 }
 
-async function load(): Promise<DbState> {
-  if (state) return state;
-  if (!loading) {
-    loading = (async () => {
-      const raw = storage()?.getItem(STORAGE_KEY);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw) as DbState;
-          if (parsed.version === DB_VERSION) {
-            state = parsed;
-            return parsed;
-          }
-        } catch {
-          /* fall through to reseed */
-        }
-      }
-      const { buildSeed } = await import("./seed");
-      const seeded = await buildSeed();
-      state = seeded;
-      persist(seeded);
-      return seeded;
-    })().finally(() => {
-      loading = null;
-    });
-  }
-  return loading;
+function current(): StoreBackend {
+  const backend = g.__koshStoreBackend;
+  if (!backend) throw new Error("No database backend configured — handlers must run on the server (src/server/rpc.ts).");
+  return backend;
 }
 
-if (typeof window !== "undefined") {
-  // Keep tabs in sync: another tab committed a write.
-  window.addEventListener("storage", (e) => {
-    if (e.key !== STORAGE_KEY) return;
-    if (!e.newValue) {
-      state = null;
-      return;
-    }
-    try {
-      const next = JSON.parse(e.newValue) as DbState;
-      if (next.version === DB_VERSION) state = next;
-    } catch {
-      /* ignore */
-    }
-  });
-}
-
-export async function read<T>(fn: (db: DbState) => T): Promise<T> {
-  await queue.catch(() => undefined);
-  const db = await load();
-  return fn(db);
+export function read<T>(fn: (db: DbState) => T): Promise<T> {
+  return current().read(fn);
 }
 
 export function write<T>(fn: (draft: DbState) => T | Promise<T>): Promise<T> {
-  const run = queue.then(async () => {
-    const current = await load();
-    const draft = structuredClone(current);
-    const result = await fn(draft);
-    assertInvariants(draft);
-    state = draft;
-    persist(draft);
-    return result;
-  });
-  queue = run.catch(() => undefined);
-  return run;
+  return current().write(fn);
 }
 
-function assertInvariants(db: DbState) {
+export function assertInvariants(db: DbState) {
   for (const w of db.wallets) {
     const values = [w.available, w.savings, w.pending, w.cashInHand ?? 0];
     if (values.some((v) => !Number.isInteger(v))) {
@@ -110,9 +50,6 @@ function assertInvariants(db: DbState) {
   }
 }
 
-export async function resetDatabase() {
-  await queue.catch(() => undefined);
-  storage()?.removeItem(STORAGE_KEY);
-  state = null;
-  await load();
+export function resetDatabase() {
+  return current().reset();
 }

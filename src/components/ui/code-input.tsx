@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/hooks/use-i18n";
 
 interface CodeInputProps {
   length: number;
@@ -21,6 +22,7 @@ interface CodeInputProps {
  * supports paste, backspace navigation and the one-time-code autofill hint.
  */
 export function CodeInput({ length, value, onChange, secret, autoFocus, disabled, invalid, label, onComplete }: CodeInputProps) {
+  const { t } = useI18n();
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const digits = Array.from({ length }, (_, i) => value[i] ?? "");
 
@@ -47,7 +49,7 @@ export function CodeInput({ length, value, onChange, secret, autoFocus, disabled
           autoComplete={i === 0 && !secret ? "one-time-code" : "off"}
           maxLength={length}
           disabled={disabled}
-          aria-label={`${label} digit ${i + 1}`}
+          aria-label={t("{label} digit {n}", { label, n: i + 1 })}
           aria-invalid={invalid || undefined}
           value={d}
           onFocus={(e) => e.currentTarget.select()}
@@ -89,11 +91,12 @@ export function CodeInput({ length, value, onChange, secret, autoFocus, disabled
 
 /** Development-only helper that surfaces the mock SMS code. */
 export function DevCodeHint({ code }: { code?: string }) {
+  const { t } = useI18n();
   if (!code) return null;
   return (
     <div className="flex items-center gap-2 rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-      <span className="rounded bg-amber-200 px-1.5 py-0.5 font-bold uppercase tracking-wide">Dev</span>
-      Mock SMS provider — code: <span className="tabular font-mono text-sm font-bold tracking-widest">{code}</span>
+      <span className="rounded bg-amber-200 px-1.5 py-0.5 font-bold uppercase tracking-wide">{t("Dev")}</span>
+      {t("Mock SMS provider — code:")} <span className="tabular font-mono text-sm font-bold tracking-widest">{code}</span>
     </div>
   );
 }

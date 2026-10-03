@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { normalizePhone } from "./utils";
+import { DEFAULT_LANG, LANGS, msg } from "./i18n/core";
 
 /**
  * Validation rules shared by the forms (client) and the API layer (server).
@@ -64,7 +65,7 @@ export function passwordStrength(pw: string): { score: 0 | 1 | 2 | 3 | 4; label:
   if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
   if (/\d/.test(pw)) score++;
   if (/[^A-Za-z0-9]/.test(pw) && pw.length >= 10) score++;
-  const labels = ["Too weak", "Weak", "Fair", "Good", "Strong"];
+  const labels = [msg("Too weak"), msg("Weak"), msg("Fair"), msg("Good"), msg("Strong")];
   return { score: score as 0 | 1 | 2 | 3 | 4, label: labels[score] };
 }
 
@@ -144,6 +145,9 @@ const mustAccept = (what: string) => z.boolean().refine((v) => v === true, { mes
 
 /* ───────────── Registration payloads (validated server-side too) ───────────── */
 
+/** Interface language the new account starts with; changeable later in the profile. */
+export const languageSchema = z.enum(LANGS, { error: "Choose a language" });
+
 export const personalRegistrationSchema = z.object({
   fullName: nameSchema,
   phone: phoneSchema,
@@ -157,6 +161,7 @@ export const personalRegistrationSchema = z.object({
   selfieCheckId: z.string().nullable().optional(),
   otpChallengeId: z.string().min(1, "Send a verification code to your mobile first"),
   otpCode: otpSchema,
+  language: languageSchema.default(DEFAULT_LANG),
   acceptTerms: mustAccept("terms"),
 });
 export type PersonalRegistrationInput = z.input<typeof personalRegistrationSchema>;
@@ -180,6 +185,7 @@ export const agentRegistrationSchema = z.object({
   pin: pinSchema,
   otpChallengeId: z.string().min(1, "Send a verification code to your mobile first"),
   otpCode: otpSchema,
+  language: languageSchema.default(DEFAULT_LANG),
   acceptTerms: mustAccept("agent terms"),
 });
 export type AgentRegistrationInput = z.input<typeof agentRegistrationSchema>;
@@ -217,6 +223,7 @@ export const merchantRegistrationSchema = z.object({
   pin: pinSchema,
   otpChallengeId: z.string().min(1, "Send a verification code to your mobile first"),
   otpCode: otpSchema,
+  language: languageSchema.default(DEFAULT_LANG),
   acceptTerms: mustAccept("merchant terms"),
 });
 export type MerchantRegistrationInput = z.input<typeof merchantRegistrationSchema>;

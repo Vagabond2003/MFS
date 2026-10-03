@@ -2,62 +2,50 @@
 
 A Mobile Financial Services web app with three isolated customer roles — **Personal**, **Agent**, **Merchant** — plus an **Admin** back office.
 
-> **Scope of this repository: frontend only.**
-> There is no database or backend server here. The UI talks to a typed API contract (`src/services/contracts.ts`) with two implementations:
->
-> | Mode | What it is | Use it for |
-> |---|---|---|
-> | `mock` (default) | An in-browser development server with seeded, fictional data, persisted to `localStorage`. It enforces the same rules a backend must (sessions, RBAC, verification gates, fees, limits, PIN/OTP, atomic posting, audit log). | Running and demoing the app locally |
-> | `http` | A REST client for a real backend (see [API contract](#connecting-a-real-backend)). | Production |
->
-> **The mock is not a security boundary.** Anything running in a browser can be modified by its user. It exists so every flow can be exercised end-to-end today. Real security comes from the backend implementing the contract below.
+> **How it runs.** The UI talks to a typed API contract (`src/services/contracts.ts`). In the default `supabase` mode the API handlers run on this Next.js server (`/api/rpc`) and store everything in a Supabase PostgreSQL database. They enforce sessions, RBAC, verification gates, fees, limits, PIN/OTP, atomic posting and the audit log. An `http` mode is also available for an external REST backend (see [API contract](#connecting-a-real-backend)).
 
 ---
 
 ## Quick start
 
-Requirements: Node.js 20.9+ (tested on Node 25), npm.
+Requirements: Node.js 20.9+ (tested on Node 25), npm, a Supabase project.
 
-```bash
-npm install
-```
+1. In the Supabase **SQL Editor**, run `supabase/schema.sql`, then `supabase/seed.sql` (once each — re-running `schema.sql` deletes all data).
+   A database created before a change in `supabase/migrations/` needs those files run once instead, in name order — they are safe to re-run:
+   - `20261003_user_language.sql` — each user's interface language
+   - `20261004_ai_intelligence.sql` — districts on agents/merchants and the `ai_insights` cache (needed for the [intelligence features](#merchant--agent-intelligence))
+   - `20261005_fix_json_strings.sql` — optional cleanup of JSON values saved as strings by older versions
+2. `npm install`
+3. `cp .env.example .env.local`, then fill in:
+   - `DATABASE_URL` — Supabase → **Connect** → **Direct** → Method **Transaction pooler** (port 6543), with your database password.
+   - `AUTH_JWT_SECRET` — any random string of 32+ characters.
+   - *Optional:* `GEMINI_API_KEY` and/or `GROQ_API_KEY` for AI-written insight text (see [AI configuration](#ai-configuration)). Without them every insight still works with template text.
+4. *Optional, for the intelligence demo:* `node --env-file=.env.local scripts/seed-synthetic.mjs` — 90 days of synthetic history (see [Synthetic data](#synthetic-data)).
+5. `npm run dev` and open http://localhost:3000.
 
-```bash
-cp .env.example .env.local
-```
+Other scripts: `npm run build`, `npm start`, `npm run lint`, `npm run typecheck`. Checks without a test framework: `node scripts/check-i18n.mjs`, `node scripts/check-intelligence.mjs`, `node scripts/check-ai.mjs`.
 
-```bash
-npm run dev
-```
+### Starting accounts (from `supabase/seed.sql`)
 
-Open http://localhost:3000. No database setup is needed in mock mode: the demo dataset (about six months of activity) is generated in your browser on first load. Use **Reset data** in the yellow demo banner to start over.
+Transaction PIN for all: **`24680`**. OTP codes are shown on screen by the **development SMS provider** (no real SMS gateway is connected).
 
-Other scripts: `npm run build`, `npm start`, `npm run lint`, `npm run typecheck`.
-
-### Demo accounts (development only — fictional people and businesses)
-
-Password for all: **`Demo@1234`** · Transaction PIN: **`24680`**. The login page lists these and fills the form on click. OTP codes are shown on screen by the **development SMS provider**.
-
-| Role | Sign in with | State |
+| Role | Sign in with | Password |
 |---|---|---|
-| Personal | `01710000001` (Nadia Islam) | Verified — main demo customer |
-| Personal | `01710000002` (Tanvir Ahmed) | Verified |
-| Personal | `01710000003` (Farhana Kabir) | KYC pending — ৳5,000/txn limit |
-| Agent | `01810000001` (Hossain Telecom Point) | Verified |
-| Agent | `01810000002` (Akter Mobile Corner) | Under review — counter operations locked |
-| Merchant | `01910000001` (Spice Garden Restaurant, `MR-40021`) | Verified |
-| Merchant | `01910000002` (FreshMart Grocery, `MR-40022`) | Pending — cannot receive payments |
-| Admin | `admin@example.com` | 2FA on (OTP at sign-in) |
+| Personal | `01700000001` (Ashraful Islam) | `demo@1234` |
+| Agent | `01814557644` (Sabbir_Tele, `AG-10001`) | `demo@1234` |
+| Merchant | `01773519331` (Nafiztong, `MR-40001`) | `demo@1234` |
+| Admin | `admin@example.com` | `Demo@1234` — 2FA on (OTP at sign-in) |
 
-### A five-minute tour
+Wallets start at ৳0; the agent starts with ৳50,000 of cash recorded at the outlet. New accounts are created through `/register` and saved to the database.
 
-1. **Role isolation.** Sign in as Nadia, then type `/dashboard/merchant` in the address bar → **403**. The proxy blocks it before the page renders.
-2. **Step-up auth.** Send ৳10,000+ to `01710000002` → PIN **and** OTP are required. Enter a wrong PIN 3 times → PIN locked for 15 minutes.
-3. **Verification gate.** Sign in as `01810000002` (agent under review) → counter operations are locked. Sign in as admin → **Verifications** → approve *Akter Mobile Corner* → sign back in as the agent → Cash In works.
-4. **Unverified merchant.** As Nadia, *Merchant Pay* → `MR-40022` → refused server-side.
-5. **Dynamic QR.** As Spice Garden → *Receive payment* → generate a QR → *Simulate customer payment* (development QR provider) → confirmation appears live.
-6. **Agent-assisted Cash Out.** As agent `01810000001` → *Cash Out* for `01710000001` → the customer's OTP appears on screen.
-7. **Registration.** `/register` → pick a role → complete the wizard (OTP shown on screen; uploads are type-, size- and magic-byte-checked).
+### A quick tour
+
+1. **Role isolation.** Sign in as Ashraful, then open `/dashboard/merchant` → **403**. The proxy blocks it before the page renders.
+2. **Add Money.** As Ashraful → *Add Money* → bKash / Nagad / Rocket / Upay → approve with the one-time code and PIN.
+3. **Agent Cash Out / Cash In.** As Ashraful, *Cash Out* at `01814557644`; as Sabbir_Tele, *Cash In* to `01700000001`.
+4. **Merchant payment.** As Ashraful → *Merchant Pay* → `MR-40001`.
+5. **Verification gate.** Register a new agent or merchant at `/register` → it stays locked until the admin approves it under **Verifications**.
+6. **Registration.** `/register` → pick a role → complete the wizard (OTP shown on screen; uploads are type-, size- and magic-byte-checked).
 
 ---
 
@@ -76,7 +64,7 @@ Browser ── request ──► src/proxy.ts (server, before render)
                            users table, never from the cookie) and re-checks the route
                          • renders the role's own shell: Personal / Agent / Merchant / Admin
                      ──► page → feature view → api.* (services/contracts.ts)
-                                                  ├─ services/mock  (dev server in the browser)
+                                                  ├─ services/mock  (API handlers, run on the server)
                                                   └─ services/http  (REST backend)
 ```
 
@@ -96,9 +84,9 @@ src/
 │  ├─ unauthorized/             403
 │  └─ (app)/                    Authenticated area (AppFrame)
 │     ├─ dashboard/personal/*   send, cash-out, recharge, pay-bill, merchant-pay, add-money
-│     ├─ dashboard/agent/*      cash-in, cash-out, recharge, customer-payment, commission, settlement, verification
-│     ├─ dashboard/merchant/*   receive, qr, sales, refunds, settlement, business
-│     ├─ admin/*                users, verifications, transactions, disputes, audit-logs
+│     ├─ dashboard/agent/*      cash-in, cash-out, recharge, customer-payment, liquidity, commission, settlement, verification
+│     ├─ dashboard/merchant/*   receive, qr, sales, insights, refunds, settlement, business
+│     ├─ admin/*                intelligence, users, verifications, transactions, disputes, audit-logs
 │     └─ transactions, notifications, profile   (shared, rendered in the caller's shell)
 ├─ features/                    Screens, grouped by role/domain
 ├─ components/
@@ -111,10 +99,12 @@ src/
 ├─ services/
 │  ├─ contracts.ts              The API contract the UI depends on
 │  ├─ http/                     REST implementation
-│  ├─ mock/                     Development server: schema, store (atomic writes), ledger,
+│  ├─ mock/                     API handlers (run on the server): schema, store (atomic writes), ledger,
 │  │                            policy (fees/limits/RBAC), seed, analytics, handlers
+│  │  └─ intelligence/          Forecasts, liquidity, churn, benchmarks, anomalies, coverage (pure functions)
 │  └─ providers/                SMS/OTP, KYC, storage, payment gateway, billers, QR codec — dev implementations
-├─ lib/                         auth (access map, session token), validation (zod, shared), utils
+├─ server/ai/                   AI wording: model chain, output guard, templates, daily cache
+├─ lib/                         auth (access map, session token), validation (zod, shared), utils, i18n
 ├─ hooks/                       use-auth, use-api (fetch + tag invalidation), use-hydrated
 ├─ config/                      navigation, demo accounts
 └─ types/domain.ts              View types returned by the API
@@ -201,6 +191,7 @@ Set `NEXT_PUBLIC_API_MODE=http`, `NEXT_PUBLIC_API_BASE_URL` and `AUTH_JWT_SECRET
 | Profile & security | `GET/PATCH /profile` · `POST /security/password` · `POST /security/pin/otp` · `POST /security/pin` · `POST /security/2fa/otp` · `POST /security/2fa` · `GET /security/sessions` · `DELETE /security/sessions/:id` · `POST /security/logout-all` · `GET /security/login-history` |
 | Dashboards | `GET /personal/dashboard` · `GET /personal/recipients` · `GET /agent/dashboard` · `GET /agent/commissions` · `GET /agent/settlements` · `GET /merchant/dashboard` · `GET /merchant/settlements` |
 | Merchant QR | `GET /merchant/qr` · `POST /merchant/payment-requests` · `GET /merchant/payment-requests[/:id]` · `POST /merchant/payment-requests/:id/cancel` |
+| Insights | `GET /agent/insights/{liquidity,performance}` · `GET /merchant/insights/{demand,benchmark,recommendations}` · `GET /admin/insights/{churn,agents,coverage}` |
 | Lookups | `GET /billers` · `GET /billers/:id/bills?account=` · `POST /merchants/resolve` |
 | Admin | `GET /admin/stats` · `GET /admin/users[/:id]` · `POST /admin/users/:id/status` · `GET /admin/verifications` · `POST /admin/verifications/:userId/decision` · `POST /admin/documents/:id/review` · `GET /admin/transactions` · `GET /admin/disputes` · `PATCH /admin/disputes/:id` · `GET /admin/audit-logs` |
 
@@ -209,6 +200,100 @@ Request and response shapes are the TypeScript types in `src/services/contracts.
 ### Data model the backend should provide
 
 `services/mock/schema.ts` mirrors the relational schema. Tables: `users` (role enum `PERSONAL | AGENT | MERCHANT | ADMIN`), `personal_profiles`, `agent_profiles`, `merchant_profiles`, `merchant_businesses`, `account_status_history`, `verification_documents`, `wallets` (with an optimistic-lock `version`), `transactions` + `transaction_parties`, `commissions`, `settlements` (settlement transactions), `notifications`, `otp_codes` (hashed codes bound to a context), `sessions`, `audit_logs` (append-only), `disputes`, `payment_requests`, `rate_limits` and `idempotency_keys`.
+
+## Languages (English / বাংলা)
+
+* **Toggle** in every header (landing, sign-in, registration and all four app shells), plus a **Language** card under Profile → Profile. Signed-in users get the choice saved to their account (`users.language`), so it follows them to every device; visitors keep it in the `kosh_lang` cookie.
+* **Registration:** each sign-up form starts with a *Preferred language* choice (defaults to the language being browsed); the new account is created with it.
+* **How text is translated:** components call `t("English text")` from `useI18n()` (Server Components use `getT()` from `lib/i18n/server`). The English text is the key; Bengali lives in `src/lib/i18n/dict/`. A missing entry falls back to English.
+* **Server text** (API errors, validation messages, notifications, transaction descriptions) stays English in the database and API; the API route translates errors for the caller, and stored text is translated when shown. Messages with values (amounts, names, IDs) match the patterns in `dict/bn-patterns.ts`.
+* **Coverage check:** `node scripts/check-i18n.mjs` lists any user-facing English string without a Bengali entry. Run it after adding UI text.
+* Amounts, phone numbers and IDs keep Latin digits; dates use Bengali month and day names.
+
+## Merchant & agent intelligence
+
+Forecasts, benchmarks and risk signals for agents, merchants and the operations team (hackathon Track 05).
+
+**Numbers come from code, words come from the LLM.** Every forecast, score, benchmark and flag is computed by deterministic TypeScript in `src/services/mock/intelligence/`. A language model only turns those figures into a sentence or two. Every screen still works, with template text, when no model is configured or none answers.
+
+| Who | Where | What |
+|---|---|---|
+| Agent | Dashboard card · **Liquidity planner** (`/dashboard/agent/liquidity`) | 7-day cash and e-money float projection, shortfall warning, suggested float top-up / extra cash / settlement, day-by-day table, 28-day performance and anonymous standing among agents |
+| Merchant | **Insights** (`/dashboard/merchant/insights`) | 7-day sales forecast (dashed continuation of the actual line, likely-range band), busiest hours and day, payment mix, comparison with similar merchants, 3 recommendations |
+| Admin | **Intelligence** (`/admin/intelligence`) | Merchant churn risk with reasons, agent patterns to review (near-limit cash-outs, repeated customers, off-hours activity, volume spikes), rising performers, service gaps, district coverage ranking |
+
+### How the figures are made
+
+* **Forecasts** (`forecast.ts`): weekday seasonality, a damped trend and a salary-day (1st–5th of the month) uplift, learned from up to 8 weeks of history; an ~80% band from the residuals. Days and hours are bucketed in Asia/Dhaka.
+* **Liquidity** (`liquidity.ts`): the agent's expected cash-out, cash-in and other cash collected each day, applied to today's real wallet. A day is at risk when a busy day (upper band) would need more than the projected opening cash or float. Suggestions are rounded up to ৳1,000.
+* **Churn** (`churn.ts`): a 0–100 score with fixed weights: days since last payment 35, payment-count drop 25, value drop 20, failure rate 10, refund rate 10. Every score lists its factors.
+* **Benchmarks** (`benchmark.ts`): last 30 days against merchants with the same category and district (falls back to category, then all merchants). Only medians and percentiles are returned; no peer is ever identified.
+* **Agent patterns** (`anomalies.ts`): each measure is compared with peers and with the agent's own previous 8 weeks. Flags are patterns to review, not verdicts.
+* **Coverage** (`coverage.ts`): distinct customers served per agent and per merchant by district over 30 days, ranked against the network median, with the extra agents needed to reach it.
+
+### How the words are made (`src/server/ai/`)
+
+* `explain(kind, facts, lang)` tries `GEMINI_MODEL` → `GEMINI_FALLBACK_MODEL` → `GROQ_MODEL` within one 18-second budget. Each attempt has its own timeout, and time is held back for the next model. Rate-limited or slow models get a short cool-down. If nothing usable comes back, a deterministic English/Bengali template answers.
+* **Privacy:** models only receive aggregated, pre-formatted figures plus category and district. Never names, phone numbers, NIDs, addresses, agent codes or transaction IDs. `scripts/check-ai.mjs` checks this against the whole dataset.
+* **Guard:** a reply is used only if it is JSON of the expected shape (zod), in the requested language, and every number in it appears in the facts (Bengali digits count the same). Otherwise the next model is tried.
+* **No path to money:** the model has no tools and its output is display text. Suggested actions and amounts come from code, and links only open the normal screens, where the user still confirms with a PIN.
+* **Cache and limits:** wording is cached per user, insight, language and input hash for the Dhaka day (`ai_insights`). Model calls are limited to 30 per user per hour through `rate_limits`, and run outside any database transaction.
+* **Labelling:** the UI marks model text as **AI-generated** with when it was written. Template text is labelled *Automatic summary*. Text follows the user's saved language.
+
+### AI configuration
+
+Server-only variables in `.env.local` (never `NEXT_PUBLIC_`). All are optional.
+
+| Variable | Default in `.env.example` | Notes |
+|---|---|---|
+| `GEMINI_API_KEY` | — | Google AI Studio key. Used for both Gemini models. |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | First choice. JSON mode, 8 s timeout. |
+| `GEMINI_FALLBACK_MODEL` | `gemma-4-31b-it` | Second choice. No JSON mode; often slow, so 8 s timeout. |
+| `GROQ_API_KEY` | — | Groq key. |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | Third choice (OpenAI-compatible API). |
+
+To try the chain from the command line: `node --env-file=.env.local scripts/check-ai.mjs --live` (add `--lang=bn` for Bengali). It prints the facts sent and the text that came back, never keys.
+
+### Synthetic data
+
+```bash
+node --env-file=.env.local scripts/seed-synthetic.mjs           # seed (needs 20261004_ai_intelligence.sql)
+node --env-file=.env.local scripts/seed-synthetic.mjs --reset   # remove it again
+node --env-file=.env.local scripts/seed-synthetic.mjs --dry-run # generate and validate only
+```
+
+* About 300 customers, 25 agents and 40 merchants across 8 districts, with 90 days of history ending today. That is about 7,500 transactions.
+* Every id starts with `syn_` and every synthetic user is `is_demo`. `--reset` deletes only those rows.
+* The demo agent and merchant (Sabbir_Tele, Nafiztong) get a district (Dhaka) and history on top of their real balances. `--reset` reverses the history's effect.
+* Fees, commissions and limits come from `policy.ts`, and postings follow the ledger's rules, so every wallet stays whole-poisha and non-negative.
+* The generator is deterministic (fixed seed, days anchored to the run date).
+* **Planted patterns:**
+  - weekly seasonality and salary-day cash-out spikes
+  - 5 declining merchants
+  - an agent with near-limit cash-outs by repeat customers (Chattogram)
+  - an agent with off-hours bursts (Narayanganj)
+  - 2 fast-growing agents (Sylhet, Khulna)
+  - an overloaded, underserved district (Gazipur)
+* The seed prints one account per pattern. Every synthetic account uses password `demo@1234` and PIN `24680`.
+
+### Demo script (5 minutes)
+
+After running the migration and the seed, with the AI keys set:
+
+1. **Admin → Intelligence** (`admin@example.com`). The churn table opens with the declining merchants and their reasons (e.g. "No payment for 8 days", "Payments down 100%"). The summary above it carries the **AI-generated** label and the time it was written.
+2. **Same page, further down.**
+   - *Patterns to review* shows the Chattogram agent's near-limit cash-outs and the Narayanganj agent's off-hours activity, each compared with peers.
+   - *Rising performers* and *Service gaps* follow.
+   - *District coverage* ranks **Gazipur** most underserved, with the extra agents it needs.
+3. **Agent → Liquidity planner.** Sign in as the Gazipur agent printed by the seed (*Agent with a cash shortfall*).
+   - The dashboard card warns that cash may run short in the coming days and suggests how much cash to bring.
+   - *Open planner* shows the 14-day history and 7-day projection with the at-risk day in red, the day-by-day table, and the salary-day uplift.
+   - Sabbir_Tele (`01814557644`) shows the same page for an agent with healthy cash.
+4. **Merchant → Insights** as Nafiztong (`01773519331`).
+   - The sales forecast continues the actual line as a dashed line inside its likely-range band.
+   - Below it: busiest hours, the payment mix, and the comparison with similar merchants in Dhaka (medians only, no names).
+   - At the top: three recommendations, each chosen by code and worded by the model.
+5. **বাংলা and resilience.** Switch the language toggle to বাংলা: the screens and the AI text come back in Bengali. Then remove the AI keys from `.env.local` and restart. Every number stays the same, and the text switches to the *Automatic summary* templates.
 
 ## Design notes
 
@@ -219,6 +304,5 @@ Request and response shapes are the TypeScript types in `src/services/contracts.
 
 ## Limitations
 
-* Mock mode keeps data in one browser profile. One browser holds one session at a time (use a second browser profile to act as two users at once).
 * Camera QR scanning belongs in the native app. On the web, the customer pastes the QR content (copyable from the merchant screen).
 * Document previews show a placeholder: the development storage provider keeps metadata and a hash only.

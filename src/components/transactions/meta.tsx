@@ -13,27 +13,29 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { msg } from "@/lib/i18n/core";
 import type { PaymentMethod, Role, TransactionStatus, TransactionType } from "@/types/domain";
 
+/** Labels are English — render with `t()`. */
 export const TXN_META: Record<TransactionType, { label: string; icon: LucideIcon }> = {
-  SEND_MONEY: { label: "Send Money", icon: Send },
-  RECEIVE_MONEY: { label: "Received Money", icon: ArrowDownLeft },
-  CASH_IN: { label: "Cash In", icon: ArrowDownToLine },
-  CASH_OUT: { label: "Cash Out", icon: Banknote },
-  MOBILE_RECHARGE: { label: "Mobile Recharge", icon: Smartphone },
-  MERCHANT_PAYMENT: { label: "Merchant Payment", icon: Store },
-  BILL_PAYMENT: { label: "Bill Payment", icon: ReceiptText },
-  ADD_MONEY: { label: "Add Money", icon: CirclePlus },
-  REFUND: { label: "Refund", icon: RotateCcw },
-  COMMISSION: { label: "Commission", icon: Percent },
-  SETTLEMENT: { label: "Settlement", icon: Landmark },
+  SEND_MONEY: { label: msg("Send Money"), icon: Send },
+  RECEIVE_MONEY: { label: msg("Received Money"), icon: ArrowDownLeft },
+  CASH_IN: { label: msg("Cash In"), icon: ArrowDownToLine },
+  CASH_OUT: { label: msg("Cash Out"), icon: Banknote },
+  MOBILE_RECHARGE: { label: msg("Mobile Recharge"), icon: Smartphone },
+  MERCHANT_PAYMENT: { label: msg("Merchant Payment"), icon: Store },
+  BILL_PAYMENT: { label: msg("Bill Payment"), icon: ReceiptText },
+  ADD_MONEY: { label: msg("Add Money"), icon: CirclePlus },
+  REFUND: { label: msg("Refund"), icon: RotateCcw },
+  COMMISSION: { label: msg("Commission"), icon: Percent },
+  SETTLEMENT: { label: msg("Settlement"), icon: Landmark },
 };
 
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
-  QR_SCAN: "QR scan",
-  MERCHANT_ID: "Merchant ID",
-  PAYMENT_LINK: "Payment link",
-  ONLINE_CHECKOUT: "Online checkout",
+  QR_SCAN: msg("QR scan"),
+  MERCHANT_ID: msg("Merchant ID"),
+  PAYMENT_LINK: msg("Payment link"),
+  ONLINE_CHECKOUT: msg("Online checkout"),
 };
 
 /** Transaction types a role can filter by (what can appear in their history). */

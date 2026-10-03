@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
 import { PersonalDashboardView } from "@/features/personal/dashboard";
+import { titled } from "@/lib/i18n/server";
 
-export const metadata: Metadata = { title: "Home" };
+export const generateMetadata = titled("Home");
 
 export default function Page() {
   return <PersonalDashboardView />;

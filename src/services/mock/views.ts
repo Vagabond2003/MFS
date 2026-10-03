@@ -38,6 +38,7 @@ export function toCurrentUser(db: DbState, u: UserRecord): CurrentUser {
     email: u.email,
     status: u.status,
     twoFactorEnabled: u.twoFactorEnabled,
+    language: u.language ?? null,
     isDemo: u.isDemo,
     createdAt: u.createdAt,
     ...(agent ? { agentCode: agent.agentCode, outletName: agent.outletName } : {}),

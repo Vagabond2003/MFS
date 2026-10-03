@@ -1,3 +1,5 @@
+"use client";
+
 import {
   CircleAlert,
   CircleCheck,
@@ -11,6 +13,8 @@ import {
   Send,
 } from "lucide-react";
 import { cn, titleCase } from "@/lib/utils";
+import { useI18n } from "@/hooks/use-i18n";
+import { msg } from "@/lib/i18n/core";
 import type { AccountStatus, DisputeStatus, DocumentStatus, TransactionStatus } from "@/types/domain";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "accent" | "violet";
@@ -54,81 +58,87 @@ const ic = "h-3.5 w-3.5";
 
 /** Status always pairs colour with an icon and a label — never colour alone. */
 const TXN: Record<TransactionStatus, { tone: Tone; label: string; icon: React.ReactNode }> = {
-  SUCCESSFUL: { tone: "success", label: "Successful", icon: <CircleCheck className={ic} aria-hidden /> },
-  PENDING: { tone: "warning", label: "Pending", icon: <Clock3 className={ic} aria-hidden /> },
-  FAILED: { tone: "danger", label: "Failed", icon: <CircleX className={ic} aria-hidden /> },
-  CANCELLED: { tone: "neutral", label: "Cancelled", icon: <CircleSlash className={ic} aria-hidden /> },
-  REFUNDED: { tone: "violet", label: "Refunded", icon: <RotateCcw className={ic} aria-hidden /> },
+  SUCCESSFUL: { tone: "success", label: msg("Successful"), icon: <CircleCheck className={ic} aria-hidden /> },
+  PENDING: { tone: "warning", label: msg("Pending"), icon: <Clock3 className={ic} aria-hidden /> },
+  FAILED: { tone: "danger", label: msg("Failed"), icon: <CircleX className={ic} aria-hidden /> },
+  CANCELLED: { tone: "neutral", label: msg("Cancelled"), icon: <CircleSlash className={ic} aria-hidden /> },
+  REFUNDED: { tone: "violet", label: msg("Refunded"), icon: <RotateCcw className={ic} aria-hidden /> },
 };
 
 export function TxnStatusBadge({ status }: { status: TransactionStatus }) {
+  const { t } = useI18n();
   const s = TXN[status];
   return (
     <Badge tone={s.tone} icon={s.icon}>
-      {s.label}
+      {t(s.label)}
     </Badge>
   );
 }
 
 const ACCOUNT: Record<AccountStatus, { tone: Tone; label: string; icon: React.ReactNode }> = {
-  VERIFIED: { tone: "success", label: "Verified", icon: <ShieldCheck className={ic} aria-hidden /> },
-  ACTIVE: { tone: "success", label: "Active", icon: <CircleCheck className={ic} aria-hidden /> },
-  PENDING_VERIFICATION: { tone: "warning", label: "Pending verification", icon: <Clock3 className={ic} aria-hidden /> },
-  PENDING: { tone: "warning", label: "Pending", icon: <Clock3 className={ic} aria-hidden /> },
-  APPLICATION_SUBMITTED: { tone: "info", label: "Application submitted", icon: <Send className={ic} aria-hidden /> },
-  UNDER_REVIEW: { tone: "info", label: "Under review", icon: <Search className={ic} aria-hidden /> },
-  REJECTED: { tone: "danger", label: "Rejected", icon: <CircleX className={ic} aria-hidden /> },
-  SUSPENDED: { tone: "danger", label: "Suspended", icon: <ShieldAlert className={ic} aria-hidden /> },
+  VERIFIED: { tone: "success", label: msg("Verified"), icon: <ShieldCheck className={ic} aria-hidden /> },
+  ACTIVE: { tone: "success", label: msg("Active"), icon: <CircleCheck className={ic} aria-hidden /> },
+  PENDING_VERIFICATION: { tone: "warning", label: msg("Pending verification"), icon: <Clock3 className={ic} aria-hidden /> },
+  PENDING: { tone: "warning", label: msg("Pending"), icon: <Clock3 className={ic} aria-hidden /> },
+  APPLICATION_SUBMITTED: { tone: "info", label: msg("Application submitted"), icon: <Send className={ic} aria-hidden /> },
+  UNDER_REVIEW: { tone: "info", label: msg("Under review"), icon: <Search className={ic} aria-hidden /> },
+  REJECTED: { tone: "danger", label: msg("Rejected"), icon: <CircleX className={ic} aria-hidden /> },
+  SUSPENDED: { tone: "danger", label: msg("Suspended"), icon: <ShieldAlert className={ic} aria-hidden /> },
 };
 
 export function AccountStatusBadge({ status }: { status: AccountStatus }) {
+  const { t } = useI18n();
   const s = ACCOUNT[status];
   return (
     <Badge tone={s.tone} icon={s.icon}>
-      {s.label}
+      {t(s.label)}
     </Badge>
   );
 }
 
+/** English label — render it with `t()`. */
 export function accountStatusLabel(status: AccountStatus) {
   return ACCOUNT[status]?.label ?? titleCase(status);
 }
 
 const DOC: Record<DocumentStatus, { tone: Tone; label: string; icon: React.ReactNode }> = {
-  APPROVED: { tone: "success", label: "Approved", icon: <CircleCheck className={ic} aria-hidden /> },
-  PENDING: { tone: "warning", label: "Pending review", icon: <Clock3 className={ic} aria-hidden /> },
-  REJECTED: { tone: "danger", label: "Rejected", icon: <CircleX className={ic} aria-hidden /> },
+  APPROVED: { tone: "success", label: msg("Approved"), icon: <CircleCheck className={ic} aria-hidden /> },
+  PENDING: { tone: "warning", label: msg("Pending review"), icon: <Clock3 className={ic} aria-hidden /> },
+  REJECTED: { tone: "danger", label: msg("Rejected"), icon: <CircleX className={ic} aria-hidden /> },
 };
 
 export function DocumentStatusBadge({ status }: { status: DocumentStatus }) {
+  const { t } = useI18n();
   const s = DOC[status];
   return (
     <Badge tone={s.tone} icon={s.icon}>
-      {s.label}
+      {t(s.label)}
     </Badge>
   );
 }
 
 const DISPUTE: Record<DisputeStatus, { tone: Tone; label: string; icon: React.ReactNode }> = {
-  OPEN: { tone: "warning", label: "Open", icon: <CircleAlert className={ic} aria-hidden /> },
-  INVESTIGATING: { tone: "info", label: "Investigating", icon: <Search className={ic} aria-hidden /> },
-  RESOLVED: { tone: "success", label: "Resolved", icon: <CircleCheck className={ic} aria-hidden /> },
-  REJECTED: { tone: "neutral", label: "Rejected", icon: <CircleX className={ic} aria-hidden /> },
+  OPEN: { tone: "warning", label: msg("Open"), icon: <CircleAlert className={ic} aria-hidden /> },
+  INVESTIGATING: { tone: "info", label: msg("Investigating"), icon: <Search className={ic} aria-hidden /> },
+  RESOLVED: { tone: "success", label: msg("Resolved"), icon: <CircleCheck className={ic} aria-hidden /> },
+  REJECTED: { tone: "neutral", label: msg("Rejected"), icon: <CircleX className={ic} aria-hidden /> },
 };
 
 export function DisputeStatusBadge({ status }: { status: DisputeStatus }) {
+  const { t } = useI18n();
   const s = DISPUTE[status];
   return (
     <Badge tone={s.tone} icon={s.icon}>
-      {s.label}
+      {t(s.label)}
     </Badge>
   );
 }
 
 export function DemoBadge({ className }: { className?: string }) {
+  const { t } = useI18n();
   return (
     <span className={cn("rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800", className)}>
-      Demo
+      {t("Demo")}
     </span>
   );
 }

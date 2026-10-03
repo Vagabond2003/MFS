@@ -114,10 +114,19 @@ export interface PaymentGateway {
   charge(sourceId: string, amount: Money): Promise<{ approved: boolean; reference: string; declineReason?: string }>;
 }
 
+/** External mobile wallets that can fund Add Money. The wallet number is entered per transfer. */
+export const MFS_SOURCES: FundingSource[] = [
+  { id: "src_mfs_bkash", kind: "MFS", label: "bKash", masked: "Mobile wallet" },
+  { id: "src_mfs_nagad", kind: "MFS", label: "Nagad", masked: "Mobile wallet" },
+  { id: "src_mfs_rocket", kind: "MFS", label: "Rocket", masked: "Mobile wallet" },
+  { id: "src_mfs_upay", kind: "MFS", label: "Upay", masked: "Mobile wallet" },
+];
+
 export class DevPaymentGateway implements PaymentGateway {
   readonly name = "dev-gateway";
   async fundingSources(): Promise<FundingSource[]> {
     return [
+      ...MFS_SOURCES,
       { id: "src_bank_demo", kind: "BANK", label: "Demo Bank — Savings", masked: "•••• 4521" },
       { id: "src_card_test", kind: "CARD", label: "Test Visa card", masked: "•••• 1111" },
     ];

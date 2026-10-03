@@ -19,8 +19,9 @@ import type {
   TransactionStatus,
   TransactionType,
 } from "@/types/domain";
+import type { Lang } from "@/lib/i18n/core";
 
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 /** users */
 export interface UserRecord {
@@ -35,6 +36,8 @@ export interface UserRecord {
   pinHash: string;
   status: AccountStatus;
   twoFactorEnabled: boolean;
+  /** Interface language. Missing on databases that haven't run the language migration. */
+  language?: Lang;
   isDemo: boolean;
   failedLoginCount: number;
   lockedUntil: string | null;
@@ -68,6 +71,9 @@ export interface AgentProfileRecord {
   emergencyPhone: string;
   nidNumber: string;
   reviewNote: string | null;
+  /** Where the outlet operates. Missing on databases without the intelligence migration. */
+  district?: string | null;
+  area?: string | null;
 }
 
 /** merchant_profiles (owner identity) */
@@ -90,6 +96,9 @@ export interface MerchantBusinessRecord {
   tradeLicenseNumber: string;
   taxId: string | null;
   settlementAccount: string;
+  /** Where the business operates. Missing on databases without the intelligence migration. */
+  district?: string | null;
+  area?: string | null;
 }
 
 /** account_status_history */
@@ -269,6 +278,20 @@ export interface PaymentRequestRecord {
   payer: PartyRecord | null;
 }
 
+/** ai_insights — cached AI wording for computed insights (see src/server/ai). */
+export interface AiInsightRecord {
+  id: string;
+  userId: string;
+  kind: string;
+  language: Lang;
+  /** SHA-256 of the computed figures that were explained. */
+  inputHash: string;
+  payload: Record<string, unknown>;
+  /** Model id, or "template" when no model answered. */
+  model: string;
+  createdAt: string;
+}
+
 export interface DbState {
   version: number;
   seededAt: string;
@@ -288,6 +311,8 @@ export interface DbState {
   auditLogs: AuditLogRecord[];
   disputes: DisputeRecord[];
   paymentRequests: PaymentRequestRecord[];
+  /** Empty on databases without the intelligence migration. */
+  aiInsights: AiInsightRecord[];
   /** rate_limits: key → fixed-window counter */
   rateLimits: Record<string, { count: number; resetAt: number }>;
   /** idempotency_keys: key → resulting trxId */

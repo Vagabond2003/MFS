@@ -24,6 +24,8 @@ import { Alert, EmptyState, ErrorState, Skeleton } from "@/components/ui/feedbac
 import { AmountInput, Field, Input } from "@/components/ui/form";
 import { invalidateLedger, useApi } from "@/hooks/use-api";
 import { useCurrentUser } from "@/hooks/use-auth";
+import { useI18n } from "@/hooks/use-i18n";
+import { msg } from "@/lib/i18n/core";
 import { api } from "@/services";
 import { toApiError } from "@/services/errors";
 import { cn, formatDateTime, formatMoney, formatTime, toMinor } from "@/lib/utils";
@@ -33,13 +35,14 @@ import { CATEGORY_META } from "../register/merchant-form";
 import { QuickAmounts } from "../shared/flow-aside";
 
 function NotVerified() {
+  const { t } = useI18n();
   return (
     <Card>
       <EmptyState
         icon={<LockKeyhole className="h-6 w-6" />}
-        title="Available after verification"
-        description="QR codes and payment requests are enabled once your business is verified. Customers can't pay an unverified merchant."
-        action={<ButtonLink href="/dashboard/merchant/business" variant="outline">View verification status</ButtonLink>}
+        title={t("Available after verification")}
+        description={t("QR codes and payment requests are enabled once your business is verified. Customers can't pay an unverified merchant.")}
+        action={<ButtonLink href="/dashboard/merchant/business" variant="outline">{t("View verification status")}</ButtonLink>}
       />
     </Card>
   );
@@ -48,6 +51,7 @@ function NotVerified() {
 /* ───────────── Static QR ───────────── */
 
 export function MerchantQrView() {
+  const { t } = useI18n();
   const user = useCurrentUser();
   const qr = useApi(() => api.merchant.qr(), []);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -66,7 +70,7 @@ export function MerchantQrView() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="QR code" description="Print it at your counter. Customers scan it, enter the amount and pay with their PIN." eyebrow="Payments" />
+      <PageHeader title={t("QR code")} description={t("Print it at your counter. Customers scan it, enter the amount and pay with their PIN.")} eyebrow={t("Payments")} />
       {user.status !== "VERIFIED" ? (
         <NotVerified />
       ) : !q ? (
@@ -75,51 +79,51 @@ export function MerchantQrView() {
         <div className="grid gap-6 lg:grid-cols-[420px_minmax(0,1fr)]">
           <div className="print-area mx-auto w-full max-w-[420px] overflow-hidden rounded-3xl bg-white shadow-float ring-1 ring-slate-200">
             <div className="bg-accent-600 px-6 py-5 text-center text-accent-fg">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-80">Pay with Kosh</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-80">{t("Pay with Kosh")}</p>
               <p className="mt-1 text-xl font-bold">{q.businessName}</p>
-              <p className="text-xs opacity-80">{CATEGORY_META[q.category].label}</p>
+              <p className="text-xs opacity-80">{t(CATEGORY_META[q.category].label)}</p>
             </div>
             <div className="flex flex-col items-center px-6 py-7">
               <div className="rounded-2xl border border-slate-200 p-4">
                 <QRCodeSVG value={q.qrPayload} size={232} level="M" marginSize={0} />
               </div>
-              <p className="mt-4 text-xs font-medium uppercase tracking-wider text-slate-400">Merchant ID</p>
+              <p className="mt-4 text-xs font-medium uppercase tracking-wider text-slate-400">{t("Merchant ID")}</p>
               <p className="tabular font-mono text-2xl font-bold tracking-wider text-slate-900">{q.merchantId}</p>
               <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500">
-                <ScanLine className="h-3.5 w-3.5" aria-hidden /> Scan · enter amount · confirm with PIN
+                <ScanLine className="h-3.5 w-3.5" aria-hidden /> {t("Scan · enter amount · confirm with PIN")}
               </p>
             </div>
           </div>
           <div className="space-y-4">
             <Card>
-              <CardHeader title="Use your QR" />
+              <CardHeader title={t("Use your QR")} />
               <CardBody className="space-y-3">
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={download}>
-                    <Download className="h-4 w-4" aria-hidden /> Download PNG
+                    <Download className="h-4 w-4" aria-hidden /> {t("Download PNG")}
                   </Button>
                   <Button variant="outline" onClick={() => window.print()}>
-                    <Printer className="h-4 w-4" aria-hidden /> Print
+                    <Printer className="h-4 w-4" aria-hidden /> {t("Print")}
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => {
                       void navigator.clipboard?.writeText(q.qrPayload);
-                      toast.success("QR content copied");
+                      toast.success(t("QR content copied"));
                     }}
                   >
-                    <Copy className="h-4 w-4" aria-hidden /> Copy QR content
+                    <Copy className="h-4 w-4" aria-hidden /> {t("Copy QR content")}
                   </Button>
                 </div>
                 <p className="text-sm text-slate-500">
-                  This is your <strong>static</strong> QR — the customer types the amount. For a fixed amount (e.g. a bill total), create a dynamic QR from{" "}
+                  {t("This is your static QR — the customer types the amount. For a fixed amount (e.g. a bill total), create a dynamic QR from")}{" "}
                   <a href="/dashboard/merchant/receive" className="font-semibold text-accent-700 hover:underline">
-                    Receive payment
+                    {t("Receive payment")}
                   </a>
                   .
                 </p>
                 <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Encoded content</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t("Encoded content")}</p>
                   <p className="mt-1 break-all font-mono text-xs text-slate-700">{q.qrPayload}</p>
                 </div>
               </CardBody>
@@ -151,13 +155,14 @@ function Countdown({ until }: { until: string }) {
 }
 
 const REQUEST_STATUS: Record<PaymentRequestView["status"], { tone: "warning" | "success" | "neutral" | "danger"; label: string }> = {
-  AWAITING: { tone: "warning", label: "Awaiting payment" },
-  PAID: { tone: "success", label: "Paid" },
-  EXPIRED: { tone: "neutral", label: "Expired" },
-  CANCELLED: { tone: "danger", label: "Cancelled" },
+  AWAITING: { tone: "warning", label: msg("Awaiting payment") },
+  PAID: { tone: "success", label: msg("Paid") },
+  EXPIRED: { tone: "neutral", label: msg("Expired") },
+  CANCELLED: { tone: "danger", label: msg("Cancelled") },
 };
 
 export function ReceivePaymentView() {
+  const { t, lang } = useI18n();
   const user = useCurrentUser();
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -177,7 +182,7 @@ export function ReceivePaymentView() {
         const next = await api.merchant.getPaymentRequest(activeId);
         setActive(next);
         if (next.status === "PAID") {
-          toast.success(`Payment received: ${formatMoney(next.amount)}`);
+          toast.success(t("Payment received: {amount}", { amount: formatMoney(next.amount) }));
           invalidateLedger();
         }
       } catch {
@@ -185,12 +190,12 @@ export function ReceivePaymentView() {
       }
     }, 2500);
     return () => window.clearInterval(id);
-  }, [activeId, activeAwaiting]);
+  }, [activeId, activeAwaiting, t]);
 
   if (user.status !== "VERIFIED") {
     return (
       <div className="space-y-6">
-        <PageHeader title="Receive payment" eyebrow="Payments" />
+        <PageHeader title={t("Receive payment")} eyebrow={t("Payments")} />
         <NotVerified />
       </div>
     );
@@ -213,53 +218,53 @@ export function ReceivePaymentView() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Receive payment" eyebrow="Payments" description="Create a one-time QR for an exact amount. It confirms here the moment the customer pays." />
+      <PageHeader title={t("Receive payment")} eyebrow={t("Payments")} description={t("Create a one-time QR for an exact amount. It confirms here the moment the customer pays.")} />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <Card>
-          <CardHeader title="New payment request" icon={<QrCode className="h-[18px] w-[18px]" />} />
+          <CardHeader title={t("New payment request")} icon={<QrCode className="h-[18px] w-[18px]" />} />
           <CardBody className="space-y-5">
-            <Field label="Amount" required>
+            <Field label={t("Amount")} required>
               {(p) => <AmountInput {...p} value={amount} onChange={(e) => setAmount(e.target.value)} disabled={activeAwaiting} />}
             </Field>
             <QuickAmounts values={[250, 500, 1000, 2500]} onPick={(v) => setAmount(String(v))} />
-            <Field label="Note for customer" optional>
-              {(p) => <Input {...p} value={note} maxLength={80} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Table 6 — dinner" disabled={activeAwaiting} />}
+            <Field label={t("Note for customer")} optional>
+              {(p) => <Input {...p} value={note} maxLength={80} onChange={(e) => setNote(e.target.value)} placeholder={t("e.g. Table 6 — dinner")} disabled={activeAwaiting} />}
             </Field>
-            {error && <Alert tone="danger">{error}</Alert>}
+            {error && <Alert tone="danger">{t(error)}</Alert>}
             <Button size="lg" fullWidth onClick={create} loading={creating} disabled={activeAwaiting}>
-              Generate QR
+              {t("Generate QR")}
             </Button>
           </CardBody>
         </Card>
 
         <Card className="overflow-hidden">
           {!active ? (
-            <EmptyState icon={<ScanLine className="h-6 w-6" />} title="No active request" description="Enter an amount and generate a QR. Show it to the customer to scan with their Kosh app." className="py-20" />
+            <EmptyState icon={<ScanLine className="h-6 w-6" />} title={t("No active request")} description={t("Enter an amount and generate a QR. Show it to the customer to scan with their Kosh app.")} className="py-20" />
           ) : active.status === "PAID" ? (
             <div className="flex animate-fade-in flex-col items-center px-6 py-10 text-center">
               <span className="grid h-16 w-16 animate-pop place-items-center rounded-full bg-emerald-100 text-emerald-600">
                 <CircleCheck className="h-9 w-9" aria-hidden />
               </span>
-              <h2 className="mt-4 text-lg font-bold text-slate-900">Payment confirmed</h2>
+              <h2 className="mt-4 text-lg font-bold text-slate-900">{t("Payment confirmed")}</h2>
               <p className="mt-1 text-4xl font-bold tracking-tight text-slate-900">{formatMoney(active.amount)}</p>
               <div className="mt-6 w-full max-w-sm rounded-2xl bg-slate-50 px-4 text-left">
                 <DescriptionList
                   items={[
-                    { label: "From", value: active.payer ? `${active.payer.name} · ${active.payer.account}` : "—" },
-                    { label: "Transaction ID", value: <span className="tabular font-mono">{active.trxId}</span> },
-                    { label: "Paid at", value: active.paidAt ? formatDateTime(active.paidAt) : "—" },
-                    { label: "Request", value: active.id },
+                    { label: t("From"), value: active.payer ? `${active.payer.name} · ${active.payer.account}` : "—" },
+                    { label: t("Transaction ID"), value: <span className="tabular font-mono">{active.trxId}</span> },
+                    { label: t("Paid at"), value: active.paidAt ? formatDateTime(active.paidAt, lang) : "—" },
+                    { label: t("Request"), value: active.id },
                   ]}
                 />
               </div>
               <Button className="mt-6" onClick={() => { setActive(null); setAmount(""); setNote(""); }}>
-                New payment request
+                {t("New payment request")}
               </Button>
             </div>
           ) : (
             <div className="flex flex-col items-center px-6 py-8 text-center">
               <Badge tone={REQUEST_STATUS[active.status].tone} icon={active.status === "AWAITING" ? <Clock3 className="h-3.5 w-3.5" aria-hidden /> : undefined}>
-                {REQUEST_STATUS[active.status].label}
+                {t(REQUEST_STATUS[active.status].label)}
               </Badge>
               <p className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{formatMoney(active.amount)}</p>
               <p className="text-sm text-slate-500">{user.businessName}{active.note ? ` · ${active.note}` : ""}</p>
@@ -270,7 +275,7 @@ export function ReceivePaymentView() {
               {active.status === "AWAITING" ? (
                 <>
                   <p className="mt-4 flex items-center gap-1.5 text-sm text-slate-500">
-                    <Timer className="h-4 w-4" aria-hidden /> Expires in <Countdown until={active.expiresAt} /> · waiting for the customer…
+                    <Timer className="h-4 w-4" aria-hidden /> {t("Expires in")} <Countdown until={active.expiresAt} /> · {t("waiting for the customer…")}
                   </p>
                   <div className="mt-5 flex flex-wrap justify-center gap-2">
                     <Button
@@ -281,25 +286,25 @@ export function ReceivePaymentView() {
                         history.reload();
                       }}
                     >
-                      <X className="h-4 w-4" aria-hidden /> Cancel request
+                      <X className="h-4 w-4" aria-hidden /> {t("Cancel request")}
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
                         void navigator.clipboard?.writeText(active.qrPayload);
-                        toast.success("QR content copied — paste it in a customer's Merchant Pay screen");
+                        toast.success(t("QR content copied — paste it in a customer's Merchant Pay screen"));
                       }}
                     >
-                      <Copy className="h-4 w-4" aria-hidden /> Copy QR content
+                      <Copy className="h-4 w-4" aria-hidden /> {t("Copy QR content")}
                     </Button>
                   </div>
-                  {api.mode === "mock" && (
+                  {api.mode !== "http" && (
                     <div className="mt-6 w-full rounded-2xl border border-dashed border-amber-300 bg-amber-50/70 p-4 text-left">
                       <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-900">
-                        <FlaskConical className="h-3.5 w-3.5" aria-hidden /> Development QR provider
+                        <FlaskConical className="h-3.5 w-3.5" aria-hidden /> {t("Development QR provider")}
                       </p>
-                      <p className="mt-1 text-[13px] text-amber-900">Simulate a customer scanning this code and paying. A real deployment receives this from the payment network.</p>
+                      <p className="mt-1 text-[13px] text-amber-900">{t("Simulate a customer scanning this code and paying. A real deployment receives this from the payment network.")}</p>
                       <Button
                         size="sm"
                         variant="secondary"
@@ -316,14 +321,14 @@ export function ReceivePaymentView() {
                           }
                         }}
                       >
-                        Simulate customer payment
+                        {t("Simulate customer payment")}
                       </Button>
                     </div>
                   )}
                 </>
               ) : (
                 <Button className="mt-5" onClick={() => setActive(null)}>
-                  New payment request
+                  {t("New payment request")}
                 </Button>
               )}
             </div>
@@ -332,7 +337,7 @@ export function ReceivePaymentView() {
       </div>
 
       <Card>
-        <CardHeader title="Today's payment requests" description="Payment confirmations for dynamic QR codes" />
+        <CardHeader title={t("Today's payment requests")} description={t("Payment confirmations for dynamic QR codes")} />
         <div className="mt-4">
           {history.data?.length ? (
             <ul className="divide-y divide-slate-100">
@@ -346,17 +351,17 @@ export function ReceivePaymentView() {
                       {formatMoney(r.amount)} <span className="font-normal text-slate-500">· {r.note ?? r.id}</span>
                     </p>
                     <p className="text-xs text-slate-500">
-                      {formatTime(r.createdAt)}
-                      {r.trxId && <> · TrxID <span className="tabular font-mono">{r.trxId}</span></>}
+                      {formatTime(r.createdAt, lang)}
+                      {r.trxId && <> · {t("TrxID")} <span className="tabular font-mono">{r.trxId}</span></>}
                       {r.payer && <> · {r.payer.name}</>}
                     </p>
                   </div>
-                  <Badge tone={REQUEST_STATUS[r.status].tone}>{REQUEST_STATUS[r.status].label}</Badge>
+                  <Badge tone={REQUEST_STATUS[r.status].tone}>{t(REQUEST_STATUS[r.status].label)}</Badge>
                 </li>
               ))}
             </ul>
           ) : (
-            <EmptyState title="No requests today" description="Requests you create appear here with their payment status." />
+            <EmptyState title={t("No requests today")} description={t("Requests you create appear here with their payment status.")} />
           )}
         </div>
       </Card>
