@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { after } from "next/server";
 import type { SessionClaims } from "@/lib/auth/session-token";
 import type { Lang } from "@/lib/i18n/core";
 import { ApiError, toApiError } from "@/services/errors";
@@ -103,9 +104,11 @@ export async function runCall(ctx: CallContext, fn: (...args: unknown[]) => Prom
   return als.run(ctx, async () => {
     try {
       const data = await fn(...args);
-      // Sent after the call (and its transaction) succeeded; delivery problems are logged, not surfaced.
-      if (ctx.outbox.length) void deliverEmails(ctx.outbox.splice(0), ctx.origin);
-      if (ctx.smsOutbox.length) void deliverSms(ctx.smsOutbox.splice(0));
+      // Sent after the call (and its transaction) succeeded, once the response is out. after() keeps
+      // serverless functions alive until delivery finishes; problems are logged, not surfaced.
+      const emails = ctx.outbox.splice(0);
+      const texts = ctx.smsOutbox.splice(0);
+      if (emails.length || texts.length) after(() => Promise.all([deliverEmails(emails, ctx.origin), deliverSms(texts)]));
       return { ok: true as const, data };
     } catch (err) {
       if (err instanceof ApiError) return { ok: false as const, error: err };
