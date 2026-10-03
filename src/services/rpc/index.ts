@@ -67,5 +67,4 @@ export const rpcApi: ApiClient = {
   insights: group("insights"),
   lookup: group("lookup"),
   admin: group("admin"),
-  dev: group("dev"),
 };

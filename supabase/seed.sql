@@ -13,6 +13,11 @@
 -- recorded at the outlet (cash_in_hand), so Cash Out / float top-up work.
 -- Profile fields marked "Not provided" are placeholders — edit them here or
 -- in the Supabase table editor; the app picks changes up on the next request.
+--
+-- The other 4 accounts of each role (5 per role in total) are in
+-- synthetic-data.sql — run it after this file. It is an export of
+-- scripts/seed-synthetic.mjs (see "Synthetic data" in README.md).
+-- Keep the data small: the app loads the whole database into memory.
 -- ════════════════════════════════════════════════════════════════════
 
 begin;

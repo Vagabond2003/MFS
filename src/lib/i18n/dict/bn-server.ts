@@ -289,4 +289,7 @@ export const server: Record<string, string> = {
   "Open Kosh": "Kosh খুলুন",
   "Hello {name},": "প্রিয় {name},",
   "Hello,": "প্রিয় গ্রাহক,",
+  // Verification document files
+  "This file wasn't kept: it was uploaded before document storage was turned on. Ask the applicant to upload it again.": "এই ফাইলটি সংরক্ষিত হয়নি: ডকুমেন্ট সংরক্ষণ চালুর আগে এটি আপলোড করা হয়েছিল। আবেদনকারীকে আবার আপলোড করতে বলুন।",
+  "The file could not be saved. Please try again.": "ফাইলটি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
 };

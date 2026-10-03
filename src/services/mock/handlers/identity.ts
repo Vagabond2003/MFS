@@ -11,6 +11,7 @@ import {
 } from "@/lib/validation";
 import { maskPhone, normalizePhone } from "@/lib/utils";
 import { attachRegistrationAvatar, registrationAvatar, storeAvatar } from "@/server/avatars";
+import { storeDocumentFile } from "@/server/documents";
 import type { AccountStatus, DocumentType, Role, SessionInfo } from "@/types/domain";
 import type { Lang } from "@/lib/i18n/core";
 import type { AuthApi, RegistrationApi, UploadApi, UploadPurpose } from "../../contracts";
@@ -222,7 +223,7 @@ export const uploads: UploadApi = {
     }
     const id = randomId("doc");
     const stored = await providers.storage.put(file, `uploads/${id}`);
-    return write((db) => {
+    const ref = await write((db) => {
       consumeRateLimit(db, "uploads", 30, 10 * 60_000);
       const caller = resolveCaller(db);
       db.documents.push({
@@ -242,6 +243,17 @@ export const uploads: UploadApi = {
       });
       return { uploadId: id, fileName: file.name, mimeType: sniffed, sizeBytes: file.size };
     });
+    // The bytes go to document_files (outside the snapshot), so an admin can view them.
+    try {
+      await storeDocumentFile(id, sniffed, stored.sha256, new Uint8Array(await file.arrayBuffer()));
+    } catch (err) {
+      console.error("[uploads] could not store the file:", err);
+      await write((db) => {
+        db.documents = db.documents.filter((d) => d.id !== id);
+      });
+      throw new ApiError("UNKNOWN", "The file could not be saved. Please try again.");
+    }
+    return ref;
   },
 };
 

@@ -1,9 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { after } from "next/server";
-import type { SessionClaims } from "@/lib/auth/session-token";
-import type { Lang } from "@/lib/i18n/core";
+import { after, type NextRequest } from "next/server";
+import { SESSION_COOKIE, readSessionClaims, type SessionClaims } from "@/lib/auth/session-token";
+import { DEFAULT_LANG, LANG_COOKIE, isLang, type Lang } from "@/lib/i18n/core";
 import { ApiError, toApiError } from "@/services/errors";
-import { admin, dev } from "@/services/mock/handlers/admin";
+import { admin } from "@/services/mock/handlers/admin";
 import { agent, lookup, merchant, notifications, personal, profile, security, transactions, wallet } from "@/services/mock/handlers/account";
 import { auth, registration, uploads } from "@/services/mock/handlers/identity";
 import { insights } from "@/services/mock/handlers/insights";
@@ -41,7 +41,6 @@ const GROUPS: Record<string, object> = {
   insights,
   lookup,
   admin,
-  dev,
 };
 
 export interface CallContext {
@@ -58,6 +57,21 @@ export interface CallContext {
   smsOutbox: { to: string; message: string }[];
   /** Set when a handler signs the user in or out. */
   cookie: { action: "set"; claims: SessionClaims; remember: boolean } | { action: "clear" } | null;
+}
+
+/** The call context for a request: its session, client details and language. */
+export async function callContextFor(request: NextRequest): Promise<CallContext> {
+  const langCookie = request.cookies.get(LANG_COOKIE)?.value;
+  return {
+    claims: await readSessionClaims(request.cookies.get(SESSION_COOKIE)?.value),
+    userAgent: request.headers.get("user-agent") ?? "",
+    ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "127.0.0.1",
+    lang: isLang(langCookie) ? langCookie : DEFAULT_LANG,
+    origin: process.env.APP_URL || request.nextUrl.origin,
+    outbox: [],
+    smsOutbox: [],
+    cookie: null,
+  };
 }
 
 // One request context per process, shared by every hot-reloaded copy of this module.

@@ -10,7 +10,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { register } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 process.removeAllListeners("warning");
 process.on("warning", (w) => w.code !== "MODULE_TYPELESS_PACKAGE_JSON" && console.warn(w.message));
@@ -35,7 +35,7 @@ register(
 );
 
 /** Import a module from src/ by its path relative to the project root. */
-export const importSrc = (path) => import(pathToFileURL(new URL(path, ROOT).pathname).href);
+export const importSrc = (path) => import(pathToFileURL(fileURLToPath(new URL(path, ROOT))).href);
 
 /**
  * The synthetic dataset as a DbState. Generates it offline unless FILE (written
@@ -45,7 +45,7 @@ export const importSrc = (path) => import(pathToFileURL(new URL(path, ROOT).path
 export function loadSyntheticDb(file) {
   if (!file) {
     file = join(mkdtempSync(join(tmpdir(), "kosh-intel-")), "synthetic.json");
-    execFileSync(process.execPath, [new URL("scripts/seed-synthetic.mjs", ROOT).pathname, "--offline", `--emit=${file}`], { stdio: "inherit" });
+    execFileSync(process.execPath, [fileURLToPath(new URL("scripts/seed-synthetic.mjs", ROOT)), "--offline", `--emit=${file}`], { stdio: "inherit" });
   }
   const data = JSON.parse(readFileSync(file, "utf8"));
   const db = {

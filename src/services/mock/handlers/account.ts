@@ -34,7 +34,7 @@ import {
 } from "../context";
 import { hashSecret, randomId, shortCode, verifySecret } from "../crypto";
 import { isParty, post, settleDue, walletOf } from "../ledger";
-import { SECURITY } from "../policy";
+import { SECURITY, computeFees } from "../policy";
 import type { DbState, PaymentRequestRecord, TransactionRecord, UserRecord } from "../schema";
 import { read, write } from "../store";
 import { notifyParties } from "../txn-notify";
@@ -555,7 +555,7 @@ export const merchant: MerchantApi = {
         sender: payer,
         receiver: { userId: user.id, name: biz.businessName, account: biz.merchantId, kind: "MERCHANT" },
         amount: p.amount,
-        receiverFee: Math.round(p.amount * 0.015),
+        senderFee: computeFees("MERCHANT_PAYMENT", p.amount).senderFee,
         paymentMethod: "QR_SCAN",
         description: p.note ?? "QR payment",
         reference: p.id,
