@@ -17,13 +17,15 @@ export interface StoreBackend {
   reset(): Promise<void>;
 }
 
-let backend: StoreBackend | null = null;
+// Kept on globalThis so a hot-reloaded copy of this module still finds the backend.
+const g = globalThis as unknown as { __koshStoreBackend?: StoreBackend };
 
 export function setStoreBackend(next: StoreBackend) {
-  backend = next;
+  g.__koshStoreBackend = next;
 }
 
 function current(): StoreBackend {
+  const backend = g.__koshStoreBackend;
   if (!backend) throw new Error("No database backend configured — handlers must run on the server (src/server/rpc.ts).");
   return backend;
 }

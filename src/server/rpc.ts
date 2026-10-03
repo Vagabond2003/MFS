@@ -51,7 +51,9 @@ export interface CallContext {
   cookie: { action: "set"; claims: SessionClaims; remember: boolean } | { action: "clear" } | null;
 }
 
-const als = new AsyncLocalStorage<CallContext>();
+// One request context per process, shared by every hot-reloaded copy of this module.
+const g = globalThis as unknown as { __koshCallContext?: AsyncLocalStorage<CallContext> };
+const als = (g.__koshCallContext ??= new AsyncLocalStorage<CallContext>());
 
 setRequestEnvProvider(() => {
   const ctx = als.getStore();

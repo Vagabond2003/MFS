@@ -18,14 +18,16 @@ export interface RequestEnv {
   lang(): Lang;
 }
 
-let provider: (() => RequestEnv | undefined) | null = null;
+// Kept on globalThis: dev-server hot reload can re-run this module without
+// re-running src/server/rpc.ts, which would otherwise leave no provider.
+const g = globalThis as unknown as { __koshRequestEnv?: () => RequestEnv | undefined };
 
 export function setRequestEnvProvider(next: () => RequestEnv | undefined) {
-  provider = next;
+  g.__koshRequestEnv = next;
 }
 
 export function requestEnv(): RequestEnv {
-  const env = provider?.();
+  const env = g.__koshRequestEnv?.();
   if (!env) throw new Error("API handlers must run inside a server request (src/server/rpc.ts).");
   return env;
 }
