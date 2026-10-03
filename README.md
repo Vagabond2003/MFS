@@ -2,7 +2,7 @@
 
 A Mobile Financial Services web app with three isolated customer roles — **Personal**, **Agent**, **Merchant** — plus an **Admin** back office.
 
-**Live:** https://kosh-bd.vercel.app (Vercel, Singapore region). Sign in with the [starting accounts](#starting-accounts-from-supabaseseedsql) below.
+**Live:** https://kosh-mfs.vercel.app (Vercel, Singapore region). Sign in with the [starting accounts](#starting-accounts-from-supabaseseedsql) below.
 
 **What's in it**
 
@@ -377,10 +377,10 @@ OTP codes and account emails go out through **Brevo SMTP** (`src/server/email.ts
 
 ## Deployment (Vercel)
 
-Production runs on Vercel as the project **`kosh-bd`** → https://kosh-bd.vercel.app.
+Production runs on Vercel as the project **`kosh-mfs`** → https://kosh-mfs.vercel.app.
 
 ```bash
-vercel link --project kosh-bd    # once per checkout
+vercel link --project kosh-mfs   # once per checkout
 vercel deploy --prod             # build and deploy the current folder
 ```
 
@@ -388,7 +388,7 @@ vercel deploy --prod             # build and deploy the current folder
 * Environment variables are set on the project for Production: the same names as `.env.local` (database, `AUTH_JWT_SECRET`, AI, Brevo, SMS). Edit them with `vercel env` or in the dashboard, then redeploy. `NEXT_PUBLIC_*` values are baked in at build time.
 * Queued emails and texts are sent inside Next's `after()`, so the serverless function stays alive until they're delivered.
 * The project isn't connected to GitHub: pushing doesn't redeploy. Run `vercel deploy --prod` (or connect it with `vercel git connect`).
-* **Network note:** some Bangladeshi ISPs block a few Vercel addresses. The first project (`kosh-mfs.vercel.app`, address `64.29.17.3`) can't be reached from some local networks, which is why production moved to `kosh-bd` (address `64.29.17.195`). If a URL hangs on one network, try another network or a VPN.
+* **Network note:** some Bangladeshi ISPs block a few Vercel IP addresses. If the site hangs on one network, try another network (e.g. mobile data) or a VPN.
 
 ## Design notes
 
