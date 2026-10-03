@@ -65,6 +65,7 @@ const TABLES: TableSpec[] = [
   { key: "paymentRequests", table: "payment_requests", pk: "id", nested: { payer: PARTY } },
   { key: "rateLimits", table: "rate_limits", pk: "key", map: { keyColumn: "key" } },
   { key: "idempotency", table: "idempotency_keys", pk: "key", map: { keyColumn: "key" } },
+  { key: "aiInsights", table: "ai_insights", pk: "id" },
 ];
 
 /**
@@ -73,8 +74,18 @@ const TABLES: TableSpec[] = [
  */
 const OPTIONAL_COLUMNS: Record<string, string[]> = {
   users: ["language"],
+  agent_profiles: ["district", "area"],
+  merchant_businesses: ["district", "area"],
 };
+/** Tables added by later migrations: read as empty and not saved until the migration runs. */
+const OPTIONAL_TABLES = new Set(["ai_insights"]);
 const warnedMissing = new Set<string>();
+
+function warnOnce(key: string, message: string) {
+  if (warnedMissing.has(key)) return;
+  warnedMissing.add(key);
+  console.warn(message);
+}
 
 const snake = (s: string) => s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 const camel = (s: string) => s.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
@@ -126,7 +137,7 @@ function columnTypes(): Promise<ColumnTypes> {
       if (!types.has(r.table_name)) types.set(r.table_name, new Map());
       types.get(r.table_name)!.set(r.column_name, r.udt_name);
     }
-    const missing = TABLES.filter((t) => !types.has(t.table)).map((t) => t.table);
+    const missing = TABLES.filter((t) => !types.has(t.table) && !OPTIONAL_TABLES.has(t.table)).map((t) => t.table);
     if (missing.length) {
       throw new Error(`Database tables missing (${missing.join(", ")}). Run supabase/schema.sql in the Supabase SQL editor first.`);
     }
@@ -212,14 +223,14 @@ function rowsOf(spec: TableSpec, db: DbState): Map<string, Row> {
 
 async function loadAll(tx: Sql): Promise<DbState> {
   const types = await columnTypes();
-  const select = TABLES.map(
-    (t) => `'${t.table}', (select coalesce(json_agg(r), '[]'::json) from "${t.table}" r)`,
-  ).join(", ");
+  const select = TABLES.filter((t) => types.has(t.table))
+    .map((t) => `'${t.table}', (select coalesce(json_agg(r), '[]'::json) from "${t.table}" r)`)
+    .join(", ");
   const [{ data }] = await tx.unsafe<{ data: Record<string, Row[]> }[]>(`select json_build_object(${select}) as data`);
 
   const db = { version: DB_VERSION, seededAt: new Date().toISOString() } as DbState;
   for (const spec of TABLES) {
-    const rows = (data[spec.table] ?? []).map((r) => fromRow(spec, r, types.get(spec.table)!));
+    const rows = (data[spec.table] ?? []).map((r) => fromRow(spec, r, types.get(spec.table) ?? new Map()));
     if (spec.map) {
       const keyField = camel(spec.map.keyColumn);
       const map: Record<string, Row> = {};
@@ -246,19 +257,24 @@ function toParam(v: unknown): string | null {
 async function saveDiff(tx: Sql, before: DbState, after: DbState) {
   const types = await columnTypes();
   for (const spec of TABLES) {
-    const cols = types.get(spec.table)!;
+    const cols = types.get(spec.table);
     const old = rowsOf(spec, before);
     const next = rowsOf(spec, after);
 
     const changed = [...next.entries()].filter(([pk, row]) => !old.has(pk) || !same(old.get(pk)!, row)).map(([, row]) => row);
     const removed = [...old.keys()].filter((pk) => !next.has(pk));
 
+    if (!cols) {
+      if (changed.length || removed.length) {
+        warnOnce(spec.table, `[db] Table ${spec.table} is missing — run supabase/migrations to store it. Skipping for now.`);
+      }
+      continue;
+    }
+
     if (changed.length) {
       const optional = (OPTIONAL_COLUMNS[spec.table] ?? []).filter((c) => !cols.has(c));
       for (const c of optional) {
-        if (warnedMissing.has(`${spec.table}.${c}`)) continue;
-        warnedMissing.add(`${spec.table}.${c}`);
-        console.warn(`[db] Column ${spec.table}.${c} is missing — run supabase/migrations to store it. Skipping for now.`);
+        warnOnce(`${spec.table}.${c}`, `[db] Column ${spec.table}.${c} is missing — run supabase/migrations to store it. Skipping for now.`);
       }
       const columns = Object.keys(changed[0]).filter((c) => !optional.includes(c));
       const unknown = columns.filter((c) => !cols.has(c));
