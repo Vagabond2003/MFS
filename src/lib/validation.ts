@@ -112,6 +112,20 @@ export const UPLOAD_RULES = {
   extensions: [".jpg", ".jpeg", ".png", ".pdf"] as const,
 };
 
+/** Profile pictures: JPG, PNG or WebP, at most 2 MB. */
+export const AVATAR_RULES = {
+  maxBytes: 2 * 1024 * 1024,
+  mimeTypes: ["image/jpeg", "image/png", "image/webp"] as const,
+  accept: "image/jpeg,image/png,image/webp",
+};
+
+export function validateAvatarFile(file: Pick<File, "size" | "type">): string | null {
+  if (file.size === 0) return "The file is empty";
+  if (file.size > AVATAR_RULES.maxBytes) return "Profile picture must be 2 MB or smaller";
+  if (!(AVATAR_RULES.mimeTypes as readonly string[]).includes(file.type)) return "Use a JPG, PNG or WebP image";
+  return null;
+}
+
 export function validateUploadFile(file: File): string | null {
   if (file.size === 0) return "The file is empty";
   if (file.size > UPLOAD_RULES.maxBytes) return "File must be 5 MB or smaller";
@@ -125,11 +139,13 @@ export function validateUploadFile(file: File): string | null {
  * Check the file's magic bytes match its declared type. Extensions and MIME
  * types are client-controlled; the signature is what the bytes actually are.
  */
-export async function sniffFileSignature(file: File): Promise<"image/jpeg" | "image/png" | "application/pdf" | null> {
-  const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+export async function sniffFileSignature(file: File): Promise<"image/jpeg" | "image/png" | "image/webp" | "application/pdf" | null> {
+  const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
   if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return "image/jpeg";
   if (head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47) return "image/png";
   if (head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46) return "application/pdf";
+  // "RIFF" … "WEBP"
+  if (head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46 && head[8] === 0x57 && head[9] === 0x45 && head[10] === 0x42 && head[11] === 0x50) return "image/webp";
   return null;
 }
 
@@ -161,6 +177,8 @@ export const personalRegistrationSchema = z.object({
   selfieCheckId: z.string().nullable().optional(),
   otpChallengeId: z.string().min(1, "Send a verification code to your mobile first"),
   otpCode: otpSchema,
+  /** Optional profile picture, uploaded first with purpose AVATAR. */
+  avatar: uploadRefSchema.nullable().optional(),
   language: languageSchema.default(DEFAULT_LANG),
   acceptTerms: mustAccept("terms"),
 });
@@ -185,6 +203,8 @@ export const agentRegistrationSchema = z.object({
   pin: pinSchema,
   otpChallengeId: z.string().min(1, "Send a verification code to your mobile first"),
   otpCode: otpSchema,
+  /** Optional profile picture, uploaded first with purpose AVATAR. */
+  avatar: uploadRefSchema.nullable().optional(),
   language: languageSchema.default(DEFAULT_LANG),
   acceptTerms: mustAccept("agent terms"),
 });
@@ -223,6 +243,8 @@ export const merchantRegistrationSchema = z.object({
   pin: pinSchema,
   otpChallengeId: z.string().min(1, "Send a verification code to your mobile first"),
   otpCode: otpSchema,
+  /** Optional profile picture, uploaded first with purpose AVATAR. */
+  avatar: uploadRefSchema.nullable().optional(),
   language: languageSchema.default(DEFAULT_LANG),
   acceptTerms: mustAccept("merchant terms"),
 });

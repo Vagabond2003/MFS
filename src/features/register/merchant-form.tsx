@@ -16,7 +16,7 @@ import { cn, formatPhone } from "@/lib/utils";
 import { msg } from "@/lib/i18n/core";
 import { useI18n } from "@/hooks/use-i18n";
 import type { BusinessCategory, OtpChallenge } from "@/types/domain";
-import { LanguagePreference, PhoneVerification, RegistrationSuccess, StepIntro, TermsBox, WizardFrame, useWizard, type WizardStep } from "./wizard";
+import { LanguagePreference, PhoneVerification, ProfilePictureField, RegistrationSuccess, StepIntro, TermsBox, WizardFrame, useWizard, type WizardStep } from "./wizard";
 
 const schema = merchantRegistrationSchema.extend({ confirmPassword: z.string(), confirmPin: z.string() });
 type Values = z.input<typeof schema>;
@@ -32,7 +32,7 @@ export const CATEGORY_META: Record<BusinessCategory, { label: string; icon: type
 };
 
 const STEPS: WizardStep<Values>[] = [
-  { title: msg("Owner & contact"), fields: ["language", "ownerName", "phone", "email"] },
+  { title: msg("Owner & contact"), fields: ["language", "avatar", "ownerName", "phone", "email"] },
   { title: msg("Business"), fields: ["businessName", "category", "businessAddress", "registrationNumber", "tradeLicenseNumber", "taxId"] },
   { title: msg("Documents"), fields: ["tradeLicenseDoc", "registrationDoc", "taxDoc", "ownerNidNumber", "ownerNidDoc"] },
   {
@@ -52,11 +52,13 @@ export function MerchantRegistration() {
     resolver: zodResolver(schema),
     mode: "onTouched",
     defaultValues: {
-      language: lang, ownerName: "", phone: "", email: "", businessName: "", businessAddress: "", registrationNumber: "", tradeLicenseNumber: "", taxId: "", ownerNidNumber: "",
+      language: lang,
+      avatar: null, ownerName: "", phone: "", email: "", businessName: "", businessAddress: "", registrationNumber: "", tradeLicenseNumber: "", taxId: "", ownerNidNumber: "",
       taxDoc: null, password: "", confirmPassword: "", pin: "", confirmPin: "", otpChallengeId: "", otpCode: "", acceptTerms: false,
     },
   });
   const wizard = useWizard(form, STEPS);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [challenge, setChallenge] = useState<OtpChallenge | null>(null);
   const [done, setDone] = useState<{ merchantId: string } | null>(null);
   const { errors, isSubmitting } = form.formState;
@@ -110,6 +112,10 @@ export function MerchantRegistration() {
         <>
           <StepIntro title={t("Business owner")}>{t("The person legally responsible for the business.")}</StepIntro>
           <LanguagePreference value={v.language ?? lang} onChange={(l) => form.setValue("language", l)} />
+          <ProfilePictureField name={v.businessName || v.ownerName} preview={avatarPreview} error={(errors.avatar as { message?: string } | undefined)?.message} onChange={(ref, url) => {
+              form.setValue("avatar", ref);
+              setAvatarPreview(url);
+            }} />
           <Field label={t("Owner name")} required error={errors.ownerName?.message}>
             {(p) => <Input {...p} autoComplete="name" {...form.register("ownerName")} />}
           </Field>

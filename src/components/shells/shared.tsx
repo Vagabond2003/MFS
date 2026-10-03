@@ -142,7 +142,7 @@ export function UserMenu({ tone = "light", subtitle }: { tone?: "light" | "dark"
             aria-label={t("Account menu")}
             className={cn("flex items-center gap-2.5 rounded-xl p-1 pr-2 transition", tone === "dark" ? "hover:bg-white/10" : "hover:bg-slate-100")}
           >
-            <Avatar name={displayName} />
+            <Avatar name={displayName} src={user.avatarUrl} />
             <span className="hidden min-w-0 text-left lg:block">
               <span className={cn("block max-w-36 truncate text-sm font-semibold", tone === "dark" ? "text-white" : "text-slate-900")}>{displayName}</span>
               <span className={cn("block text-xs", tone === "dark" ? "text-slate-400" : "text-slate-500")}>{subtitle ?? t("{role} account", { role: t(ROLE_LABEL[user.role]) })}</span>
@@ -153,7 +153,7 @@ export function UserMenu({ tone = "light", subtitle }: { tone?: "light" | "dark"
         {(close) => (
           <div>
             <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-4">
-              <Avatar name={displayName} className="h-11 w-11" />
+              <Avatar name={displayName} src={user.avatarUrl} className="h-11 w-11" />
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 truncate font-semibold text-slate-900">
                   <span className="truncate">{displayName}</span>

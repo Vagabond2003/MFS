@@ -16,13 +16,13 @@ import { formatPhone, maskTail } from "@/lib/utils";
 import { msg } from "@/lib/i18n/core";
 import { useI18n } from "@/hooks/use-i18n";
 import type { OtpChallenge } from "@/types/domain";
-import { LanguagePreference, PhoneVerification, RegistrationSuccess, StepIntro, TermsBox, WizardFrame, useWizard, type WizardStep } from "./wizard";
+import { LanguagePreference, PhoneVerification, ProfilePictureField, RegistrationSuccess, StepIntro, TermsBox, WizardFrame, useWizard, type WizardStep } from "./wizard";
 
 const schema = agentRegistrationSchema.extend({ confirmPassword: z.string(), confirmPin: z.string() });
 type Values = z.input<typeof schema>;
 
 const STEPS: WizardStep<Values>[] = [
-  { title: msg("Personal details"), fields: ["language", "fullName", "phone", "email", "dateOfBirth", "address"] },
+  { title: msg("Personal details"), fields: ["language", "avatar", "fullName", "phone", "email", "dateOfBirth", "address"] },
   { title: msg("Outlet & contact"), fields: ["outletName", "businessAddress", "emergencyName", "emergencyRelation", "emergencyPhone"] },
   { title: msg("Agent verification"), fields: ["nidNumber", "nidFront", "nidBack", "photo"] },
   {
@@ -48,11 +48,13 @@ export function AgentRegistration() {
     resolver: zodResolver(schema),
     mode: "onTouched",
     defaultValues: {
-      language: lang, fullName: "", phone: "", email: "", dateOfBirth: "", address: "", outletName: "", businessAddress: "", emergencyName: "", emergencyRelation: "", emergencyPhone: "",
+      language: lang,
+      avatar: null, fullName: "", phone: "", email: "", dateOfBirth: "", address: "", outletName: "", businessAddress: "", emergencyName: "", emergencyRelation: "", emergencyPhone: "",
       nidNumber: "", password: "", confirmPassword: "", pin: "", confirmPin: "", otpChallengeId: "", otpCode: "", acceptTerms: false,
     },
   });
   const wizard = useWizard(form, STEPS);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [challenge, setChallenge] = useState<OtpChallenge | null>(null);
   const [done, setDone] = useState<{ code: string } | null>(null);
   const { errors, isSubmitting } = form.formState;
@@ -106,6 +108,10 @@ export function AgentRegistration() {
         <>
           <StepIntro title={t("Applicant details")}>{t("The person responsible for the agent outlet.")}</StepIntro>
           <LanguagePreference value={v.language ?? lang} onChange={(l) => form.setValue("language", l)} />
+          <ProfilePictureField name={v.fullName} preview={avatarPreview} error={(errors.avatar as { message?: string } | undefined)?.message} onChange={(ref, url) => {
+              form.setValue("avatar", ref);
+              setAvatarPreview(url);
+            }} />
           <Field label={t("Full name")} required error={errors.fullName?.message}>
             {(p) => <Input {...p} autoComplete="name" {...form.register("fullName")} />}
           </Field>

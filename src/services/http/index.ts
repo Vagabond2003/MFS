@@ -127,6 +127,7 @@ export const httpApi: ApiClient = {
   profile: {
     get: () => get("/profile"),
     update: (input) => request("PATCH", "/profile", { body: input }),
+    setAvatar: (uploadId) => (uploadId ? request("POST", "/profile/avatar", { body: { uploadId } }) : request("DELETE", "/profile/avatar")),
   },
   security: {
     changePassword: (input) => postJson("/security/password", input),

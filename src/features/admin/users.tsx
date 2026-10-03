@@ -92,7 +92,7 @@ export function AdminUsers() {
                   <TR key={u.id} onClick={() => setSelected(u.id)}>
                     <TD>
                       <div className="flex items-center gap-3">
-                        <Avatar name={u.businessName ?? u.name} className="h-8 w-8 text-xs" />
+                        <Avatar name={u.businessName ?? u.name} src={u.avatarUrl} className="h-8 w-8 text-xs" />
                         <div className="min-w-0">
                           <p className="flex items-center gap-1.5 font-medium text-slate-900">
                             <span className="truncate">{u.businessName ?? u.name}</span> {u.isDemo && <DemoBadge />}
@@ -166,8 +166,11 @@ function UserDrawer({ userId, onClose, onChanged }: { userId: string | null; onC
         <Skeleton className="h-64" />
       ) : (
         <div className="space-y-6">
-          <div className="flex items-center gap-2">
-            <AccountStatusBadge status={u.status} /> {u.isDemo && <DemoBadge />}
+          <div className="flex items-center gap-3">
+            <Avatar name={u.businessName ?? u.name} src={u.avatarUrl} className="h-14 w-14 text-lg" />
+            <div className="flex flex-wrap items-center gap-2">
+              <AccountStatusBadge status={u.status} /> {u.isDemo && <DemoBadge />}
+            </div>
           </div>
           <section>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">{t("Account")}</h3>

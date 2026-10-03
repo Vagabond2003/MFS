@@ -4,8 +4,9 @@ import { ChevronRight } from "lucide-react";
 import { TxnStatusBadge } from "@/components/ui/badge";
 import { Table, TD, TH, THead, TR } from "@/components/ui/data";
 import { Skeleton } from "@/components/ui/feedback";
+import { Avatar } from "@/components/ui/popover";
 import { cn, formatDateTime, formatMoney, formatRelative } from "@/lib/utils";
-import type { TransactionView } from "@/types/domain";
+import type { PartyView, TransactionView } from "@/types/domain";
 import { useI18n } from "@/hooks/use-i18n";
 import { PAYMENT_METHOD_LABEL, TXN_META, TxnIcon } from "./meta";
 
@@ -27,14 +28,22 @@ function Amount({ txn }: { txn: TransactionView }) {
   );
 }
 
-function Counterparty({ txn }: { txn: TransactionView }) {
+/** A party with its profile picture (or initials), name and account. */
+export function PartyLine({ party, className }: { party: PartyView; className?: string }) {
   const { t } = useI18n();
   return (
-    <div className="min-w-0">
-      <p className="truncate font-medium text-slate-900">{t(txn.counterparty.name)}</p>
-      <p className="tabular truncate text-xs text-slate-500">{txn.counterparty.account}</p>
+    <div className={cn("flex min-w-0 items-center gap-2.5", className)}>
+      <Avatar name={t(party.name)} src={party.avatarUrl} className="h-8 w-8 text-xs ring-0" />
+      <div className="min-w-0">
+        <p className="truncate font-medium text-slate-900">{t(party.name)}</p>
+        <p className="tabular truncate text-xs text-slate-500">{party.account}</p>
+      </div>
     </div>
   );
+}
+
+function Counterparty({ txn }: { txn: TransactionView }) {
+  return <PartyLine party={txn.counterparty} />;
 }
 
 export function TransactionTable({
@@ -68,8 +77,11 @@ export function TransactionTable({
               <TxnIcon type={txn.type} direction={txn.direction} status={txn.status} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-slate-900">{t(TXN_META[txn.type].label)}</p>
-                <p className="truncate text-xs text-slate-500">
-                  {t(txn.counterparty.name)} · {formatRelative(txn.createdAt, lang)}
+                <p className="flex min-w-0 items-center gap-1.5 text-xs text-slate-500">
+                  <Avatar name={t(txn.counterparty.name)} src={txn.counterparty.avatarUrl} className="h-4 w-4 text-[7px] ring-0" />
+                  <span className="truncate">
+                    {t(txn.counterparty.name)} · {formatRelative(txn.createdAt, lang)}
+                  </span>
                 </p>
               </div>
               <div className="flex flex-col items-end gap-1">
@@ -123,12 +135,10 @@ export function TransactionTable({
                   </div>
                 </TD>
                 <TD>
-                  <p className="font-medium text-slate-800">{t(txn.sender.name)}</p>
-                  <p className="tabular text-xs text-slate-500">{txn.sender.account}</p>
+                  <PartyLine party={txn.sender} />
                 </TD>
                 <TD>
-                  <p className="font-medium text-slate-800">{t(txn.receiver.name)}</p>
-                  <p className="tabular text-xs text-slate-500">{txn.receiver.account}</p>
+                  <PartyLine party={txn.receiver} />
                 </TD>
                 <TD className="whitespace-nowrap text-slate-600">{formatDateTime(txn.createdAt, lang)}</TD>
                 <TD align="right">

@@ -18,13 +18,13 @@ import { formatPhone } from "@/lib/utils";
 import { msg } from "@/lib/i18n/core";
 import { useI18n } from "@/hooks/use-i18n";
 import type { OtpChallenge } from "@/types/domain";
-import { LanguagePreference, PhoneVerification, RegistrationSuccess, StepIntro, TermsBox, WizardFrame, useWizard, type WizardStep } from "./wizard";
+import { LanguagePreference, PhoneVerification, ProfilePictureField, RegistrationSuccess, StepIntro, TermsBox, WizardFrame, useWizard, type WizardStep } from "./wizard";
 
 const schema = personalRegistrationSchema.extend({ confirmPassword: z.string(), confirmPin: z.string() });
 type Values = z.input<typeof schema>;
 
 const STEPS: WizardStep<Values>[] = [
-  { title: msg("Your details"), fields: ["language", "fullName", "phone", "email", "dateOfBirth", "address"] },
+  { title: msg("Your details"), fields: ["language", "avatar", "fullName", "phone", "email", "dateOfBirth", "address"] },
   {
     title: msg("Security"),
     fields: ["password", "confirmPassword", "pin", "confirmPin"],
@@ -42,9 +42,10 @@ export function PersonalRegistration() {
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     mode: "onTouched",
-    defaultValues: { language: lang, fullName: "", phone: "", email: "", dateOfBirth: "", address: "", password: "", confirmPassword: "", pin: "", confirmPin: "", nidNumber: "", nidDocument: null, selfieCheckId: null, otpChallengeId: "", otpCode: "", acceptTerms: false },
+    defaultValues: { language: lang, avatar: null, fullName: "", phone: "", email: "", dateOfBirth: "", address: "", password: "", confirmPassword: "", pin: "", confirmPin: "", nidNumber: "", nidDocument: null, selfieCheckId: null, otpChallengeId: "", otpCode: "", acceptTerms: false },
   });
   const wizard = useWizard(form, STEPS);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [challenge, setChallenge] = useState<OtpChallenge | null>(null);
   const [selfie, setSelfie] = useState<"idle" | "running" | "VERIFIED" | "FAILED" | "PENDING">("idle");
   const [done, setDone] = useState<{ status: string } | null>(null);
@@ -101,6 +102,10 @@ export function PersonalRegistration() {
         <>
           <StepIntro title={t("Tell us about you")}>{t("Use your legal name as it appears on your National ID.")}</StepIntro>
           <LanguagePreference value={v.language ?? lang} onChange={(l) => form.setValue("language", l)} />
+          <ProfilePictureField name={v.fullName} preview={avatarPreview} error={(errors.avatar as { message?: string } | undefined)?.message} onChange={(ref, url) => {
+              form.setValue("avatar", ref);
+              setAvatarPreview(url);
+            }} />
           <Field label={t("Full name")} required error={errors.fullName?.message}>
             {(p) => <Input {...p} autoComplete="name" placeholder={t("e.g. Ayesha Rahman")} {...form.register("fullName")} />}
           </Field>

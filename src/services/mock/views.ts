@@ -27,6 +27,27 @@ import type {
  * the viewer.
  */
 
+/** Where a user's profile picture is served (GET /api/avatars/:id, signed-in only). */
+export function avatarUrlOf(u: Pick<UserRecord, "avatarId"> | null | undefined): string | null {
+  return u?.avatarId ? `/api/avatars/${encodeURIComponent(u.avatarId)}` : null;
+}
+
+/** userId → picture URL, built once per snapshot (transaction lists map many parties). */
+const avatarIndex = new WeakMap<DbState, Map<string, string>>();
+export function partyAvatarUrl(db: DbState, userId: string | null): string | null {
+  if (!userId) return null;
+  let index = avatarIndex.get(db);
+  if (!index) {
+    index = new Map();
+    for (const u of db.users) {
+      const url = avatarUrlOf(u);
+      if (url) index.set(u.id, url);
+    }
+    avatarIndex.set(db, index);
+  }
+  return index.get(userId) ?? null;
+}
+
 export function toCurrentUser(db: DbState, u: UserRecord): CurrentUser {
   const agent = u.role === "AGENT" ? db.agentProfiles.find((p) => p.userId === u.id) : undefined;
   const biz = u.role === "MERCHANT" ? db.merchantBusinesses.find((b) => b.userId === u.id) : undefined;
@@ -39,6 +60,7 @@ export function toCurrentUser(db: DbState, u: UserRecord): CurrentUser {
     status: u.status,
     twoFactorEnabled: u.twoFactorEnabled,
     language: u.language ?? null,
+    avatarUrl: avatarUrlOf(u),
     isDemo: u.isDemo,
     createdAt: u.createdAt,
     ...(agent ? { agentCode: agent.agentCode, outletName: agent.outletName } : {}),
@@ -75,8 +97,8 @@ function maskAccount(p: PartyRecord, viewerId: string | null): string {
   }
 }
 
-function toParty(p: PartyRecord, viewerId: string | null): PartyView {
-  return { name: p.name, account: maskAccount(p, viewerId), kind: p.kind };
+function toParty(db: DbState, p: PartyRecord, viewerId: string | null): PartyView {
+  return { name: p.name, account: maskAccount(p, viewerId), kind: p.kind, avatarUrl: partyAvatarUrl(db, p.userId) };
 }
 
 const DISPUTABLE: TransactionRecord["type"][] = [
@@ -126,9 +148,9 @@ export function toTransactionView(
     fee,
     commission,
     total,
-    counterparty: toParty(counterparty, viewerId),
-    sender: toParty(t.sender, viewerId),
-    receiver: toParty(t.receiver, viewerId),
+    counterparty: toParty(db, counterparty, viewerId),
+    sender: toParty(db, t.sender, viewerId),
+    receiver: toParty(db, t.receiver, viewerId),
     description: t.description,
     reference: t.reference,
     paymentMethod: t.paymentMethod,

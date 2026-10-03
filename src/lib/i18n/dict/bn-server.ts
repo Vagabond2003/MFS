@@ -262,4 +262,13 @@ export const server: Record<string, string> = {
   "MetroFiber Internet (demo)": "মেট্রোফাইবার ইন্টারনেট (ডেমো)",
   "SkyView Cable TV (demo)": "স্কাইভিউ কেবল টিভি (ডেমো)",
   "Greenfield School (demo)": "গ্রিনফিল্ড স্কুল (ডেমো)",
+
+  /* ── Profile pictures ── */
+  "Profile picture must be 2 MB or smaller": "প্রোফাইল ছবি সর্বোচ্চ ২ MB হতে পারবে",
+  "Use a JPG, PNG or WebP image": "JPG, PNG বা WebP ছবি ব্যবহার করুন",
+  "Profile pictures aren't set up on this server yet. Run the profile-picture database migration.": "এই সার্ভারে এখনও প্রোফাইল ছবি চালু করা হয়নি। প্রোফাইল ছবির ডাটাবেস মাইগ্রেশন চালান।",
+  "The file's contents don't match its type. Upload a real JPG, PNG or WebP image.": "ফাইলের ভেতরের তথ্য এর ধরনের সাথে মিলছে না। আসল JPG, PNG বা WebP ছবি আপলোড করুন।",
+  "That picture could not be found. Please upload it again.": "ছবিটি পাওয়া যায়নি। আবার আপলোড করুন।",
+  "The profile picture could not be found. Please choose it again.": "প্রোফাইল ছবিটি পাওয়া যায়নি। আবার বেছে নিন।",
+  "Please choose the picture again": "ছবিটি আবার বেছে নিন",
 };

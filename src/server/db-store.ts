@@ -73,7 +73,7 @@ const TABLES: TableSpec[] = [
  * been migrated yet they are skipped on save instead of failing every write.
  */
 const OPTIONAL_COLUMNS: Record<string, string[]> = {
-  users: ["language"],
+  users: ["language", "avatar_id"],
   agent_profiles: ["district", "area"],
   merchant_businesses: ["district", "area"],
 };
@@ -398,4 +398,64 @@ export async function recordAiNote(input: { rateKey: string; limit: number; wind
   } finally {
     tx.release();
   }
+}
+
+/* ───────────── Profile pictures (bytes kept out of the snapshot) ───────────── */
+
+export interface AvatarRow {
+  id: string;
+  userId: string | null;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+}
+
+const globalForAvatars = globalThis as unknown as { __koshAvatarsReady?: boolean };
+
+/** True once supabase/migrations/20261006_profile_pictures.sql has been run. */
+export async function avatarsReady(): Promise<boolean> {
+  if (globalForAvatars.__koshAvatarsReady) return true;
+  const types = await columnTypes();
+  const [{ ok }] = await sql()<{ ok: boolean }[]>`select to_regclass('public.avatars') is not null as ok`;
+  const ready = ok && !!types.get("users")?.has("avatar_id");
+  // Only cache success, so running the migration takes effect without a restart.
+  if (ready) globalForAvatars.__koshAvatarsReady = true;
+  return ready;
+}
+
+export async function saveAvatar(row: AvatarRow & { data: Uint8Array }) {
+  await sql()`
+    insert into avatars (id, user_id, mime_type, size_bytes, sha256, data)
+    values (${row.id}, ${row.userId}, ${row.mimeType}, ${row.sizeBytes}, ${row.sha256}, ${Buffer.from(row.data)})`;
+}
+
+export async function findAvatar(id: string): Promise<(AvatarRow & { createdAt: string }) | null> {
+  const [r] = await sql()<{ id: string; user_id: string | null; mime_type: string; size_bytes: number; sha256: string; created_at: Date }[]>`
+    select id, user_id, mime_type, size_bytes, sha256, created_at from avatars where id = ${id}`;
+  return r ? { id: r.id, userId: r.user_id, mimeType: r.mime_type, sizeBytes: r.size_bytes, sha256: r.sha256, createdAt: new Date(r.created_at).toISOString() } : null;
+}
+
+export async function readAvatar(id: string): Promise<{ mimeType: string; sha256: string; data: Buffer } | null> {
+  const [r] = await sql()<{ mime_type: string; sha256: string; data: Buffer }[]>`select mime_type, sha256, data from avatars where id = ${id}`;
+  return r ? { mimeType: r.mime_type, sha256: r.sha256, data: r.data } : null;
+}
+
+/** Gives a registration upload to the new account. */
+export async function assignAvatar(id: string, userId: string) {
+  await sql()`update avatars set user_id = ${userId} where id = ${id} and user_id is null`;
+}
+
+/**
+ * Deletes the user's pictures other than `keep`, and registration uploads
+ * nobody claimed within a day.
+ */
+export async function pruneAvatars(userId: string, keep: string | null) {
+  await sql()`delete from avatars where (user_id = ${userId} and id is distinct from ${keep}) or (user_id is null and created_at < now() - interval '1 day')`;
+}
+
+/** An unrevoked, unexpired session (for routes outside /api/rpc that only need "is signed in"). */
+export async function sessionActive(sessionId: string): Promise<boolean> {
+  const [r] = await sql()<{ ok: boolean }[]>`
+    select exists(select 1 from sessions where id = ${sessionId} and revoked_at is null and expires_at > now()) as ok`;
+  return !!r?.ok;
 }

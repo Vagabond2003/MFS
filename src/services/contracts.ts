@@ -92,7 +92,8 @@ export interface RegistrationApi {
   startSelfieCheck(): Promise<{ checkId: string; status: "PENDING" | "VERIFIED" | "FAILED" }>;
 }
 
-export type UploadPurpose = "NID" | "PHOTO" | "SELFIE" | "BUSINESS_DOCUMENT";
+/** AVATAR: profile picture (JPG/PNG/WebP, ≤ 2 MB), stored separately from verification documents. */
+export type UploadPurpose = "NID" | "PHOTO" | "SELFIE" | "BUSINESS_DOCUMENT" | "AVATAR";
 
 export interface UploadApi {
   upload(file: File, purpose: UploadPurpose): Promise<UploadedFileRef>;
@@ -128,6 +129,8 @@ export interface NotificationsApi {
 export interface ProfileApi {
   get(): Promise<ProfileView>;
   update(input: { email?: string | null; address?: string; language?: Lang }): Promise<ProfileView>;
+  /** Sets the profile picture from an AVATAR upload, or removes it with null. */
+  setAvatar(uploadId: string | null): Promise<ProfileView>;
 }
 
 export interface SecurityApi {
@@ -145,7 +148,7 @@ export interface SecurityApi {
 
 export interface PersonalApi {
   dashboard(): Promise<PersonalDashboard>;
-  recentRecipients(): Promise<{ name: string; phone: string }[]>;
+  recentRecipients(): Promise<{ name: string; phone: string; avatarUrl?: string | null }[]>;
 }
 
 export interface AgentApi {

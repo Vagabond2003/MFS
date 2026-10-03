@@ -6,7 +6,7 @@ import { DEFAULT_LANG, LANG_COOKIE, isLang, translator } from "@/lib/i18n/core";
 
 export const runtime = "nodejs";
 
-const UPLOAD_PURPOSES: string[] = ["NID", "PHOTO", "SELFIE", "BUSINESS_DOCUMENT"] satisfies UploadPurpose[];
+const UPLOAD_PURPOSES: string[] = ["NID", "PHOTO", "SELFIE", "BUSINESS_DOCUMENT", "AVATAR"] satisfies UploadPurpose[];
 
 /**
  * Single API endpoint for NEXT_PUBLIC_API_MODE=supabase.
