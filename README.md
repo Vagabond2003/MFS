@@ -15,6 +15,9 @@ Requirements: Node.js 20.9+ (tested on Node 25), npm, a Supabase project.
    - `20261003_user_language.sql` — each user's interface language
    - `20261004_ai_intelligence.sql` — districts on agents/merchants and the `ai_insights` cache (needed for the [intelligence features](#merchant--agent-intelligence))
    - `20261005_fix_json_strings.sql` — optional cleanup of JSON values saved as strings by older versions
+   - `20261006_profile_pictures.sql` — profile pictures (`users.avatar_id` and the `avatars` table)
+
+   Restart `npm run dev` after running a migration: the server reads the database's columns once at startup.
 2. `npm install`
 3. `cp .env.example .env.local`, then fill in:
    - `DATABASE_URL` — Supabase → **Connect** → **Direct** → Method **Transaction pooler** (port 6543), with your database password.
@@ -162,6 +165,7 @@ Each role has its own navigation and information architecture:
 | Rate limiting | fixed-window limiter for login, OTP sends, password reset and uploads; PIN/password lockouts |
 | CSRF | http client sends `X-CSRF-Token` (double-submit cookie) on every mutating request; cookie is `SameSite=Lax` |
 | Upload validation | extension, MIME, ≤5 MB and **magic bytes** checked; SHA-256 recorded; stored privately |
+| Profile pictures | JPG/PNG/WebP ≤ 2 MB, magic bytes checked; stored in `avatars`, served by `GET /api/avatars/:id` to signed-in users only (random ids, `nosniff`, sandboxed CSP) |
 | Audit logging | append-only `audit_logs` for sign-ins, money movement, admin actions |
 | Transaction authorisation | PIN on every operation, OTP step-up, idempotency key against double submits |
 | Server-side balances & atomicity | ledger `post()` inside a serialised `write()` transaction; invariants (no negative or fractional balances) are checked before commit, and any failure rolls back |
@@ -188,7 +192,7 @@ Set `NEXT_PUBLIC_API_MODE=http`, `NEXT_PUBLIC_API_BASE_URL` and `AUTH_JWT_SECRET
 | Wallet & money | `GET /wallet` · `GET /wallet/funding-sources` · `POST /operations/quote` · `POST /operations/otp` · `POST /operations/execute` |
 | History | `GET /transactions?search&type&status&from&to&page&pageSize` · `GET /transactions/:trxId` · `POST /transactions/:trxId/disputes` |
 | Notifications | `GET /notifications` · `GET /notifications/unread-count` · `POST /notifications/:id/read` · `POST /notifications/read-all` |
-| Profile & security | `GET/PATCH /profile` · `POST /security/password` · `POST /security/pin/otp` · `POST /security/pin` · `POST /security/2fa/otp` · `POST /security/2fa` · `GET /security/sessions` · `DELETE /security/sessions/:id` · `POST /security/logout-all` · `GET /security/login-history` |
+| Profile & security | `GET/PATCH /profile` · `POST/DELETE /profile/avatar` (picture from a `POST /uploads` with purpose `AVATAR`) · `POST /security/password` · `POST /security/pin/otp` · `POST /security/pin` · `POST /security/2fa/otp` · `POST /security/2fa` · `GET /security/sessions` · `DELETE /security/sessions/:id` · `POST /security/logout-all` · `GET /security/login-history` |
 | Dashboards | `GET /personal/dashboard` · `GET /personal/recipients` · `GET /agent/dashboard` · `GET /agent/commissions` · `GET /agent/settlements` · `GET /merchant/dashboard` · `GET /merchant/settlements` |
 | Merchant QR | `GET /merchant/qr` · `POST /merchant/payment-requests` · `GET /merchant/payment-requests[/:id]` · `POST /merchant/payment-requests/:id/cancel` |
 | Insights | `GET /agent/insights/{liquidity,performance}` · `GET /merchant/insights/{demand,benchmark,recommendations}` · `GET /admin/insights/{churn,agents,coverage}` |
