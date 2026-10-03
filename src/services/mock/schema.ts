@@ -38,6 +38,8 @@ export interface UserRecord {
   twoFactorEnabled: boolean;
   /** Interface language. Missing on databases that haven't run the language migration. */
   language?: Lang;
+  /** Current profile picture (avatars.id); null shows initials. Missing before the profile-picture migration. */
+  avatarId?: string | null;
   isDemo: boolean;
   failedLoginCount: number;
   lockedUntil: string | null;

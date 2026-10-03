@@ -24,7 +24,7 @@ import {
 import type { DbState, PartyRecord, PaymentRequestRecord, TransactionRecord, UserRecord } from "../schema";
 import { write } from "../store";
 import { notifyParties } from "../txn-notify";
-import { toTransactionView } from "../views";
+import { partyAvatarUrl, toTransactionView } from "../views";
 
 const OPERATORS: Record<string, string> = {
   GRAMEENPHONE: "Grameenphone",
@@ -345,7 +345,7 @@ function resolve(db: DbState, user: UserRecord, req: OperationRequest): Resolved
       commission: myCommission,
       total: outgoing ? amount + myFee : amount - myFee,
       balanceAfter,
-      counterparty: { name: counterparty.name, account: display(counterparty), kind: counterparty.kind },
+      counterparty: { name: counterparty.name, account: display(counterparty), kind: counterparty.kind, avatarUrl: partyAvatarUrl(db, counterparty.userId) },
       requiresOtp: !!otp,
       otpTarget: otp ? (otp.purpose === "CUSTOMER_CASH_OUT" ? "CUSTOMER" : "SELF") : null,
       otpDestination: otp ? maskPhone(otp.destination) : null,

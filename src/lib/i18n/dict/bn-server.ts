@@ -262,4 +262,34 @@ export const server: Record<string, string> = {
   "MetroFiber Internet (demo)": "মেট্রোফাইবার ইন্টারনেট (ডেমো)",
   "SkyView Cable TV (demo)": "স্কাইভিউ কেবল টিভি (ডেমো)",
   "Greenfield School (demo)": "গ্রিনফিল্ড স্কুল (ডেমো)",
+
+  /* ── Profile pictures ── */
+  "Profile picture must be 2 MB or smaller": "প্রোফাইল ছবি সর্বোচ্চ ২ MB হতে পারবে",
+  "Use a JPG, PNG or WebP image": "JPG, PNG বা WebP ছবি ব্যবহার করুন",
+  "Profile pictures aren't set up on this server yet. Run the profile-picture database migration.": "এই সার্ভারে এখনও প্রোফাইল ছবি চালু করা হয়নি। প্রোফাইল ছবির ডাটাবেস মাইগ্রেশন চালান।",
+  "The file's contents don't match its type. Upload a real JPG, PNG or WebP image.": "ফাইলের ভেতরের তথ্য এর ধরনের সাথে মিলছে না। আসল JPG, PNG বা WebP ছবি আপলোড করুন।",
+  "That picture could not be found. Please upload it again.": "ছবিটি পাওয়া যায়নি। আবার আপলোড করুন।",
+  "The profile picture could not be found. Please choose it again.": "প্রোফাইল ছবিটি পাওয়া যায়নি। আবার বেছে নিন।",
+  "Please choose the picture again": "ছবিটি আবার বেছে নিন",
+
+  /* ── Email ── */
+  "and": "এবং",
+  "This is an automatic email from Kosh. Please don't reply.": "এটি Kosh-এর একটি স্বয়ংক্রিয় ইমেইল। দয়া করে উত্তর দেবেন না।",
+  "to finish creating your Kosh account": "আপনার Kosh অ্যাকাউন্ট তৈরি শেষ করতে",
+  "to sign in to Kosh": "Kosh-এ সাইন ইন করতে",
+  "to reset your Kosh password": "আপনার Kosh পাসওয়ার্ড রিসেট করতে",
+  "to confirm your transaction": "আপনার লেনদেন নিশ্চিত করতে",
+  "to approve a cash out at an agent": "এজেন্টের কাছে ক্যাশ আউট অনুমোদন করতে",
+  "to change your transaction PIN": "আপনার লেনদেনের পিন বদলাতে",
+  "to turn on two-step verification": "টু-স্টেপ ভেরিফিকেশন চালু করতে",
+  "Your Kosh verification code": "আপনার Kosh ভেরিফিকেশন কোড",
+  "Use this code {reason}. It expires in {minutes} minutes.": "{reason} এই কোডটি ব্যবহার করুন। কোডটি {minutes} মিনিটে মেয়াদোত্তীর্ণ হবে।",
+  "Kosh will never ask you for this code. Don't share it with anyone — not even someone who says they work for Kosh.": "Kosh কখনো আপনার কাছে এই কোড চাইবে না। কাউকে এটি দেবেন না — এমনকি কেউ নিজেকে Kosh-এর কর্মী বললেও না।",
+  "If you didn't ask for this code, you can ignore this email.": "আপনি এই কোড না চেয়ে থাকলে ইমেইলটি উপেক্ষা করুন।",
+  "Open Kosh": "Kosh খুলুন",
+  "Hello {name},": "প্রিয় {name},",
+  "Hello,": "প্রিয় গ্রাহক,",
+  // Verification document files
+  "This file wasn't kept: it was uploaded before document storage was turned on. Ask the applicant to upload it again.": "এই ফাইলটি সংরক্ষিত হয়নি: ডকুমেন্ট সংরক্ষণ চালুর আগে এটি আপলোড করা হয়েছিল। আবেদনকারীকে আবার আপলোড করতে বলুন।",
+  "The file could not be saved. Please try again.": "ফাইলটি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
 };

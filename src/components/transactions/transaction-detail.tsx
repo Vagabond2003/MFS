@@ -15,6 +15,7 @@ import { formatDateTime, formatMoney } from "@/lib/utils";
 import type { TransactionView } from "@/types/domain";
 import { useI18n } from "@/hooks/use-i18n";
 import { PAYMENT_METHOD_LABEL, TXN_META, TxnIcon } from "./meta";
+import { PartyLine } from "./transaction-table";
 
 /** Receipt view of a transaction, with role-appropriate follow-up actions. */
 export function TransactionDetail({
@@ -43,8 +44,8 @@ export function TransactionDetail({
   const rows = [
     { label: t("Transaction ID"), value: <span className="tabular font-mono">{txn.trxId}</span> },
     { label: t("Date & time"), value: formatDateTime(txn.createdAt, lang) },
-    { label: t("From"), value: `${t(txn.sender.name)} · ${txn.sender.account}` },
-    { label: t("To"), value: `${t(txn.receiver.name)} · ${txn.receiver.account}` },
+    { label: t("From"), value: <PartyLine party={txn.sender} className="justify-end text-right" /> },
+    { label: t("To"), value: <PartyLine party={txn.receiver} className="justify-end text-right" /> },
     { label: t("Amount"), value: formatMoney(txn.amount) },
     { label: t("Fee"), value: txn.fee ? formatMoney(txn.fee) : t("Free") },
     ...(txn.commission ? [{ label: t("Commission earned"), value: formatMoney(txn.commission) }] : []),

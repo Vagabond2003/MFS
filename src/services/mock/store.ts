@@ -14,7 +14,6 @@ import type { DbState } from "./schema";
 export interface StoreBackend {
   read<T>(fn: (db: DbState) => T): Promise<T>;
   write<T>(fn: (draft: DbState) => T | Promise<T>): Promise<T>;
-  reset(): Promise<void>;
 }
 
 // Kept on globalThis so a hot-reloaded copy of this module still finds the backend.
@@ -48,8 +47,4 @@ export function assertInvariants(db: DbState) {
       throw new ApiError("INSUFFICIENT_FUNDS", "Insufficient balance for this transaction");
     }
   }
-}
-
-export function resetDatabase() {
-  return current().reset();
 }

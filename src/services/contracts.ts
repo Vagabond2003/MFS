@@ -55,7 +55,8 @@ import type { Lang } from "@/lib/i18n/core";
  *
  * Two implementations exist:
  *   - services/http  — REST client for a real backend (see README "API contract")
- *   - services/mock  — in-browser development server with seeded demo data
+ *   - services/rpc   — this app's server (/api/rpc), which runs the handlers in
+ *                      services/mock against the Supabase database
  *
  * Every method is authorised server-side from the session: the client never
  * sends its own role, balance, fee or user id.
@@ -84,7 +85,8 @@ export interface AuthApi {
 }
 
 export interface RegistrationApi {
-  sendPhoneOtp(phone: string): Promise<OtpChallenge>;
+  /** Sends the sign-up code to the phone, and to `email` too when given. */
+  sendPhoneOtp(phone: string, email?: string | null): Promise<OtpChallenge>;
   registerPersonal(input: PersonalRegistrationInput): Promise<{ userId: string }>;
   registerAgent(input: AgentRegistrationInput): Promise<{ userId: string; applicationId: string }>;
   registerMerchant(input: MerchantRegistrationInput): Promise<{ userId: string; merchantId: string }>;
@@ -92,7 +94,8 @@ export interface RegistrationApi {
   startSelfieCheck(): Promise<{ checkId: string; status: "PENDING" | "VERIFIED" | "FAILED" }>;
 }
 
-export type UploadPurpose = "NID" | "PHOTO" | "SELFIE" | "BUSINESS_DOCUMENT";
+/** AVATAR: profile picture (JPG/PNG/WebP, ≤ 2 MB), stored separately from verification documents. */
+export type UploadPurpose = "NID" | "PHOTO" | "SELFIE" | "BUSINESS_DOCUMENT" | "AVATAR";
 
 export interface UploadApi {
   upload(file: File, purpose: UploadPurpose): Promise<UploadedFileRef>;
@@ -128,6 +131,8 @@ export interface NotificationsApi {
 export interface ProfileApi {
   get(): Promise<ProfileView>;
   update(input: { email?: string | null; address?: string; language?: Lang }): Promise<ProfileView>;
+  /** Sets the profile picture from an AVATAR upload, or removes it with null. */
+  setAvatar(uploadId: string | null): Promise<ProfileView>;
 }
 
 export interface SecurityApi {
@@ -145,7 +150,7 @@ export interface SecurityApi {
 
 export interface PersonalApi {
   dashboard(): Promise<PersonalDashboard>;
-  recentRecipients(): Promise<{ name: string; phone: string }[]>;
+  recentRecipients(): Promise<{ name: string; phone: string; avatarUrl?: string | null }[]>;
 }
 
 export interface AgentApi {
@@ -214,11 +219,6 @@ export interface AdminApi {
   auditLogs(query: AuditQuery): Promise<Paginated<AuditLogEntry>>;
 }
 
-export interface DevToolsApi {
-  /** Mock-only: wipes the in-browser database and re-seeds demo data. */
-  resetDemoData(): Promise<void>;
-}
-
 export interface ApiClient {
   /** supabase = this app's server + database · http = external backend */
   mode: "supabase" | "http";
@@ -237,5 +237,4 @@ export interface ApiClient {
   insights: InsightsApi;
   lookup: LookupApi;
   admin: AdminApi;
-  dev: DevToolsApi;
 }

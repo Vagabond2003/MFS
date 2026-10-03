@@ -22,7 +22,7 @@
 begin;
 
 drop table if exists
-  ai_insights, idempotency_keys, rate_limits, payment_requests, disputes, audit_logs,
+  app_state, avatars, document_files, ai_insights, idempotency_keys, rate_limits, payment_requests, disputes, audit_logs,
   sessions, otp_codes, notifications, commissions, transactions, wallets,
   verification_documents, account_status_history, merchant_businesses,
   merchant_profiles, agent_profiles, personal_profiles, users
@@ -96,6 +96,7 @@ create table users (
   status             account_status  not null,
   two_factor_enabled boolean         not null default false,
   language           text            not null default 'en' check (language in ('en', 'bn')),  -- interface language
+  avatar_id          text,                                                                 -- current profile picture (avatars.id)
   is_demo            boolean         not null default false,
   failed_login_count int             not null default 0,
   locked_until       timestamptz,
@@ -397,6 +398,31 @@ create table ai_insights (
 );
 create index ai_insights_lookup_idx on ai_insights (user_id, kind, language, input_hash, created_at desc);
 
+-- Profile picture bytes (JPG/PNG/WebP, ≤ 2 MB), served by GET /api/avatars/:id.
+-- Not loaded into the app's per-request snapshot. user_id is null between an
+-- upload during registration and account creation.
+create table avatars (
+  id          text primary key,
+  user_id     text        references users (id) on delete cascade,
+  mime_type   text        not null check (mime_type in ('image/jpeg', 'image/png', 'image/webp')),
+  size_bytes  int         not null check (size_bytes > 0 and size_bytes <= 2097152),
+  sha256      text        not null,
+  data        bytea       not null,
+  created_at  timestamptz not null default now()
+);
+create index avatars_user_idx on avatars (user_id);
+
+-- Verification document files (JPG/PNG/PDF, ≤ 5 MB), served to administrators
+-- by GET /api/documents/:id. Not loaded into the app's per-request snapshot.
+create table document_files (
+  document_id text        primary key references verification_documents (id) on delete cascade deferrable initially deferred,
+  mime_type   text        not null check (mime_type in ('image/jpeg', 'image/png', 'application/pdf')),
+  size_bytes  int         not null check (size_bytes > 0 and size_bytes <= 5242880),
+  sha256      text        not null,
+  data        bytea       not null,
+  created_at  timestamptz not null default now()
+);
+
 -- ───────────────────────── Row Level Security ─────────────────────────
 -- Enabled with no policies = deny everything to anon/authenticated.
 -- The backend (service_role key) bypasses RLS.
@@ -420,5 +446,43 @@ alter table payment_requests       enable row level security;
 alter table rate_limits            enable row level security;
 alter table idempotency_keys       enable row level security;
 alter table ai_insights            enable row level security;
+alter table avatars                enable row level security;
+alter table document_files         enable row level security;
+
+-- ───────────────────────── Change counter (lets the app cache the database) ─────────────────────────
+-- Same as supabase/migrations/20261006_change_counter.sql.
+
+create table if not exists app_state (
+  id      int    primary key default 1 check (id = 1),
+  version bigint not null default 0
+);
+insert into app_state (id, version) values (1, 0) on conflict (id) do nothing;
+alter table app_state enable row level security;
+
+create or replace function bump_app_version() returns trigger
+language plpgsql as $$
+begin
+  update app_state set version = version + 1 where id = 1;
+  return null;
+end $$;
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'users', 'personal_profiles', 'agent_profiles', 'merchant_profiles', 'merchant_businesses',
+    'account_status_history', 'verification_documents', 'wallets', 'transactions', 'commissions',
+    'notifications', 'otp_codes', 'sessions', 'audit_logs', 'disputes', 'payment_requests',
+    'rate_limits', 'idempotency_keys', 'ai_insights'
+  ] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('drop trigger if exists %I on %I', t || '_bump_version', t);
+      execute format(
+        'create trigger %I after insert or update or delete or truncate on %I for each statement execute function bump_app_version()',
+        t || '_bump_version', t);
+    end if;
+  end loop;
+end $$;
 
 commit;

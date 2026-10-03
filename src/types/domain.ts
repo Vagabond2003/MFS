@@ -37,6 +37,8 @@ export interface CurrentUser {
   twoFactorEnabled: boolean;
   /** Saved interface language; null when the account has no saved preference. */
   language: Lang | null;
+  /** Profile picture URL (signed-in users only), or null to show initials. */
+  avatarUrl: string | null;
   /** Development/demo account flag — rendered as a visible badge. */
   isDemo: boolean;
   createdAt: string;
@@ -192,6 +194,8 @@ export interface PartyView {
   /** Masked unless it is the viewer's own account. */
   account: string;
   kind: PartyKind;
+  /** Profile picture of a Kosh account party; null/absent shows initials or an icon. */
+  avatarUrl?: string | null;
 }
 
 /** A transaction as seen by one viewer (type and direction are viewer-relative). */
@@ -553,6 +557,7 @@ export interface AdminUserRow {
   lastLoginAt: string | null;
   businessName: string | null;
   isDemo: boolean;
+  avatarUrl: string | null;
 }
 
 export interface AdminUserDetail extends AdminUserRow {

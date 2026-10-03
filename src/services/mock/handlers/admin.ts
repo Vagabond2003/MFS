@@ -6,15 +6,15 @@ import type {
   DisputeView,
   VerificationApplication,
 } from "@/types/domain";
-import type { AdminApi, DevToolsApi } from "../../contracts";
+import type { AdminApi } from "../../contracts";
 import { ApiError } from "../../errors";
 import { adminStats } from "../analytics";
-import { audit, clearSessionCookie, maskIp, notify, requireCaller } from "../context";
+import { audit, maskIp, notify, requireCaller } from "../context";
 import { randomId } from "../crypto";
 import { settleDue } from "../ledger";
 import type { DbState, DisputeRecord, UserRecord } from "../schema";
-import { read, resetDatabase, write } from "../store";
-import { toDocumentView, toProfileView, toTransactionView, toWalletView } from "../views";
+import { read, write } from "../store";
+import { avatarUrlOf, toDocumentView, toProfileView, toTransactionView, toWalletView } from "../views";
 import { filterTransactions, paginate } from "./account";
 
 const ADMIN = ["ADMIN"] as const;
@@ -37,6 +37,7 @@ function toRow(db: DbState, u: UserRecord): AdminUserRow {
     lastLoginAt: u.lastLoginAt,
     businessName: businessName(db, u),
     isDemo: u.isDemo,
+    avatarUrl: avatarUrlOf(u),
   };
 }
 
@@ -320,9 +321,17 @@ export const admin: AdminApi = {
   },
 };
 
-export const dev: DevToolsApi = {
-  async resetDemoData() {
-    clearSessionCookie();
-    await resetDatabase();
-  },
-};
+/**
+ * Server-only (not part of AdminApi, so not callable through /api/rpc):
+ * authorises an administrator to open a verification document's file and
+ * records the view. Used by GET /api/documents/:id, which then streams the bytes.
+ */
+export function authorizeDocumentView(documentId: string) {
+  return write((db) => {
+    const { user: actor } = requireCaller(db, ADMIN);
+    const d = db.documents.find((x) => x.id === documentId);
+    if (!d) throw new ApiError("NOT_FOUND", "Document not found.");
+    audit(db, { actor, action: "DOCUMENT_VIEWED", target: d.userId, metadata: { document: d.type, file: d.id } });
+    return { fileName: d.fileName, mimeType: d.mimeType };
+  });
+}

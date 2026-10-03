@@ -1,5 +1,6 @@
 import { emailSchema, passwordSchema, pinSchema, addressSchema, languageSchema } from "@/lib/validation";
 import { maskPhone } from "@/lib/utils";
+import { cleanUpAvatars, ownAvatar } from "@/server/avatars";
 import type {
   LoginEvent,
   Paginated,
@@ -37,7 +38,7 @@ import { SECURITY, computeFees } from "../policy";
 import type { DbState, PaymentRequestRecord, TransactionRecord, UserRecord } from "../schema";
 import { read, write } from "../store";
 import { notifyParties } from "../txn-notify";
-import { toNotificationView, toProfileView, toTransactionView, toWalletView } from "../views";
+import { partyAvatarUrl, toNotificationView, toProfileView, toTransactionView, toWalletView } from "../views";
 
 const CUSTOMERS = ["Walk-in customer", "Rina Sarkar (demo)", "Kabir Uddin (demo)", "Moushumi Akter (demo)"];
 
@@ -199,6 +200,19 @@ export const profile: ProfileApi = {
       audit(db, { actor: user, action: "PROFILE_UPDATED", target: user.id });
       return toProfileView(db, user);
     });
+  },
+  async setAvatar(uploadId) {
+    const userId = await read((db) => requireCaller(db).user.id);
+    const avatarId = uploadId ? await ownAvatar(uploadId, userId) : null;
+    const view = await write((db) => {
+      const { user } = requireCaller(db);
+      user.avatarId = avatarId;
+      user.updatedAt = new Date().toISOString();
+      audit(db, { actor: user, action: "PROFILE_UPDATED", target: user.id, metadata: { profilePicture: avatarId ? "updated" : "removed" } });
+      return toProfileView(db, user);
+    });
+    await cleanUpAvatars(userId, avatarId);
+    return view;
   },
 };
 
@@ -368,15 +382,15 @@ export const personal: PersonalApi = {
   async recentRecipients() {
     return read((db) => {
       const { user } = requireCaller(db, ["PERSONAL"]);
-      const seen = new Map<string, string>();
+      const seen = new Map<string, { name: string; userId: string | null }>();
       for (const t of [...db.transactions].sort(newestFirst)) {
         if (t.type === "SEND_MONEY" && t.sender.userId === user.id && t.status === "SUCCESSFUL" && !seen.has(t.receiver.account)) {
-          seen.set(t.receiver.account, t.receiver.name);
+          seen.set(t.receiver.account, { name: t.receiver.name, userId: t.receiver.userId });
         }
         if (seen.size >= 6) break;
       }
       // The user's own send history — they entered these numbers themselves.
-      return [...seen.entries()].map(([phone, name]) => ({ name, phone }));
+      return [...seen.entries()].map(([phone, r]) => ({ name: r.name, phone, avatarUrl: partyAvatarUrl(db, r.userId) }));
     });
   },
 };

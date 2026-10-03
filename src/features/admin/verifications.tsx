@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { BadgeCheck, BriefcaseBusiness, Check, Eye, FileSearch, Search, Store, X } from "lucide-react";
+import { BadgeCheck, BriefcaseBusiness, Check, Download, ExternalLink, Eye, FileSearch, Search, Store, X } from "lucide-react";
 import { toast } from "sonner";
 import { AccountStatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -246,17 +246,73 @@ function ReviewDrawer({ userId, onClose, onChanged }: { userId: string | null; o
         reason={{ label: t("What's wrong with it?"), placeholder: t("e.g. Expired trade license"), minLength: 3 }}
         onConfirm={(note) => reviewDoc(docReject!, "REJECTED", note)}
       />
-      <Modal open={!!preview} onClose={() => setPreview(null)} title={preview ? t(documentLabel(preview.type)) : ""} description={preview?.fileName}>
-        <div className="grid aspect-[4/3] place-items-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 text-center">
-          <div>
-            <FileSearch className="mx-auto h-10 w-10 text-slate-300" aria-hidden />
-            <p className="mt-3 text-sm font-medium text-slate-600">{t("Secure document viewer")}</p>
-            <p className="mx-auto mt-1 max-w-xs text-xs text-slate-500">
-              {t("In production this streams the file from private object storage via a short-lived signed URL. The development storage provider keeps only metadata and a SHA-256 hash.")}
-            </p>
-          </div>
-        </div>
+      <Modal open={!!preview} onClose={() => setPreview(null)} title={preview ? t(documentLabel(preview.type)) : ""} description={preview?.fileName} size="lg">
+        {preview && <DocumentViewer key={preview.id} doc={preview} />}
       </Modal>
     </Sheet>
+  );
+}
+
+type ViewerState = { kind: "loading" } | { kind: "ready"; url: string; mimeType: string } | { kind: "error"; message: string };
+
+/** Loads a document's file from GET /api/documents/:id (admins only, audit-logged) and shows it. */
+function DocumentViewer({ doc }: { doc: VerificationDocument }) {
+  const { t } = useI18n();
+  const [state, setState] = useState<ViewerState>({ kind: "loading" });
+
+  useEffect(() => {
+    let url: string | null = null;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/documents/${encodeURIComponent(doc.id)}`, { credentials: "same-origin", cache: "no-store" });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+          if (!cancelled) setState({ kind: "error", message: body?.error?.message ?? t("The file could not be loaded. Please try again.") });
+          return;
+        }
+        const blob = await res.blob();
+        url = URL.createObjectURL(blob);
+        if (!cancelled) setState({ kind: "ready", url, mimeType: blob.type || doc.mimeType });
+      } catch {
+        if (!cancelled) setState({ kind: "error", message: t("The file could not be loaded. Please try again.") });
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [doc.id, doc.mimeType, t]);
+
+  if (state.kind === "loading") return <Skeleton className="aspect-[4/3] w-full rounded-2xl" />;
+  if (state.kind === "error") {
+    return (
+      <div className="grid aspect-[4/3] place-items-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+        <div>
+          <FileSearch className="mx-auto h-10 w-10 text-slate-300" aria-hidden />
+          <p className="mx-auto mt-3 max-w-sm text-sm text-slate-600">{state.message}</p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+        {state.mimeType === "application/pdf" ? (
+          <iframe src={state.url} title={doc.fileName} className="h-[65dvh] w-full" />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element -- a private blob, not an optimisable asset
+          <img src={state.url} alt={t(documentLabel(doc.type))} className="mx-auto max-h-[65dvh] w-auto object-contain" />
+        )}
+      </div>
+      <div className="flex flex-wrap justify-end gap-2">
+        <a href={state.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          <ExternalLink className="h-4 w-4" aria-hidden /> {t("Open in new tab")}
+        </a>
+        <a href={state.url} download={doc.fileName} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          <Download className="h-4 w-4" aria-hidden /> {t("Download")}
+        </a>
+      </div>
+    </div>
   );
 }

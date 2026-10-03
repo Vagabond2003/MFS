@@ -12,6 +12,7 @@ import { Tabs } from "@/components/ui/data";
 import { Alert, Skeleton } from "@/components/ui/feedback";
 import { AmountInput, ChoiceChips, Field, Input, PhoneInput, Select, Textarea } from "@/components/ui/form";
 import { TransactionFlow, type FlowFormContext } from "@/components/flows/transaction-flow";
+import { Avatar } from "@/components/ui/popover";
 import { useApi } from "@/hooks/use-api";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useI18n } from "@/hooks/use-i18n";
@@ -52,10 +53,13 @@ function SendMoneyForm({ submit, busy }: FlowFormContext) {
                 key={r.phone}
                 type="button"
                 onClick={() => form.setValue("to", r.phone, { shouldValidate: true })}
-                className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-left transition hover:border-accent-500"
+                className="flex shrink-0 items-center gap-2.5 rounded-xl border border-slate-200 px-3 py-2 text-left transition hover:border-accent-500"
               >
-                <p className="text-sm font-medium text-slate-800">{r.name}</p>
-                <p className="tabular text-xs text-slate-500">{r.phone}</p>
+                <Avatar name={r.name} src={r.avatarUrl} className="h-8 w-8 text-xs ring-0" />
+                <span>
+                  <span className="block text-sm font-medium text-slate-800">{r.name}</span>
+                  <span className="tabular block text-xs text-slate-500">{r.phone}</span>
+                </span>
               </button>
             ))}
           </div>

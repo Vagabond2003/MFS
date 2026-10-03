@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, getApiMode, readSessionClaims, signSessionToken } from "@/lib/auth/session-token";
-import { resolveMethod, runCall, type CallContext } from "@/server/rpc";
+import { SESSION_COOKIE, getApiMode, signSessionToken } from "@/lib/auth/session-token";
+import { callContextFor, resolveMethod, runCall } from "@/server/rpc";
 import type { UploadPurpose } from "@/services/contracts";
-import { DEFAULT_LANG, LANG_COOKIE, isLang, translator } from "@/lib/i18n/core";
+import { translator } from "@/lib/i18n/core";
 
 export const runtime = "nodejs";
 
-const UPLOAD_PURPOSES: string[] = ["NID", "PHOTO", "SELFIE", "BUSINESS_DOCUMENT"] satisfies UploadPurpose[];
+const UPLOAD_PURPOSES: string[] = ["NID", "PHOTO", "SELFIE", "BUSINESS_DOCUMENT", "AVATAR"] satisfies UploadPurpose[];
 
 /**
  * Single API endpoint for NEXT_PUBLIC_API_MODE=supabase.
@@ -53,19 +53,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: { code: "NOT_FOUND", message: "Unknown API method." } }, { status: 404 });
   }
 
-  const langCookie = request.cookies.get(LANG_COOKIE)?.value;
-  const lang = isLang(langCookie) ? langCookie : DEFAULT_LANG;
-  const ctx: CallContext = {
-    claims: await readSessionClaims(request.cookies.get(SESSION_COOKIE)?.value),
-    userAgent: request.headers.get("user-agent") ?? "",
-    ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "127.0.0.1",
-    lang,
-    cookie: null,
-  };
-
+  const ctx = await callContextFor(request);
   const result = await runCall(ctx, fn, args);
   // Error text goes back in the caller's interface language.
-  const t = translator(lang);
+  const t = translator(ctx.lang);
   const res = result.ok
     ? NextResponse.json({ data: result.data ?? null })
     : NextResponse.json(

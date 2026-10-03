@@ -177,7 +177,7 @@ export function TransactionFlow({
             {step === "review" && quote && (
               <CardBody className="animate-fade-in space-y-6">
                 <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4">
-                  <Avatar name={quote.counterparty.name} className="h-12 w-12 ring-0" />
+                  <Avatar name={t(quote.counterparty.name)} src={quote.counterparty.avatarUrl} className="h-12 w-12 ring-0" />
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-slate-900">{t(quote.counterparty.name)}</p>
                     <p className="tabular text-sm text-slate-500">{quote.counterparty.account}</p>

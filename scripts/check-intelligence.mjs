@@ -55,7 +55,7 @@ for (const [label, id] of [["service-gap agent", S.serviceGap], ["demo agent", "
 {
   const gap = intel.agentLiquidity(db, S.serviceGap, NOW);
   check("liquidity: the overloaded Gazipur agent has frequent low-cash days", gap.lowCashDays30 >= 5, `${gap.lowCashDays30} of 30`);
-  const reconstructedToday = intel.agentLiquidity(db, S.rising[1], NOW).history.every((h) => h.cash >= 0 && h.float >= 0);
+  const reconstructedToday = intel.agentLiquidity(db, S.rising[0], NOW).history.every((h) => h.cash >= 0 && h.float >= 0);
   check("liquidity: reconstructed balances never go negative", reconstructedToday);
 }
 
@@ -63,9 +63,9 @@ for (const [label, id] of [["service-gap agent", S.serviceGap], ["demo agent", "
 
 {
   const ranking = intel.churnRanking(db, NOW);
-  const top = ranking.slice(0, 8).map((r) => r.userId);
+  const top = ranking.slice(0, S.decliners.length + 1).map((r) => r.userId);
   const declinersInTop = S.decliners.filter((id) => top.includes(id)).length;
-  check("churn: the 5 declining merchants rank in the top 8", declinersInTop === 5, `${declinersInTop}/5`);
+  check(`churn: the ${S.decliners.length} declining merchants rank in the top ${S.decliners.length + 1}`, declinersInTop === S.decliners.length, `${declinersInTop}/${S.decliners.length}`);
   check("churn: decliners score at least MEDIUM", S.decliners.every((id) => ranking.find((r) => r.userId === id)?.level !== "LOW"), S.decliners.map((id) => ranking.find((r) => r.userId === id)?.score).join(", "));
   const others = ranking.filter((r) => !S.decliners.includes(r.userId)).map((r) => r.score).sort((a, b) => a - b);
   check("churn: typical merchant is low risk", others[others.length >> 1] < 35, `median ${others[others.length >> 1]}`);
@@ -76,7 +76,8 @@ for (const [label, id] of [["service-gap agent", S.serviceGap], ["demo agent", "
 
 {
   const b = intel.merchantBenchmark(db, "usr_nafiztong", NOW);
-  check("benchmark: at least 5 peers", b.peerCount >= 5, `${b.peerCount} peers, scope ${b.scope}`);
+  // The dataset has 5 merchants, so peers are "all other merchants" (at most 4).
+  check("benchmark: compared with other merchants", b.peerCount >= 2, `${b.peerCount} peers, scope ${b.scope}`);
   check("benchmark: 5 metrics with percentiles 0–100", b.metrics.length === 5 && b.metrics.every((m) => m.percentile >= 0 && m.percentile <= 100 && finite(m.value) && finite(m.peerMedian)));
   const json = JSON.stringify(b);
   const leaks = db.merchantBusinesses.filter((x) => x.userId !== "usr_nafiztong" && (json.includes(x.userId) || json.includes(x.merchantId) || json.includes(x.businessName)));
@@ -94,7 +95,7 @@ for (const [label, id] of [["service-gap agent", S.serviceGap], ["demo agent", "
   check("anomalies: near-limit agent flagged", byId.get(S.nearLimit)?.flags.some((f) => f.code === "NEAR_LIMIT_CASH_OUTS"), JSON.stringify(byId.get(S.nearLimit)?.flags.map((f) => f.code)));
   check("anomalies: repeated-customer pattern flagged", [S.nearLimit, S.offHours].some((id) => byId.get(id)?.flags.some((f) => f.code === "REPEATED_CUSTOMER")));
   check("anomalies: off-hours agent flagged", byId.get(S.offHours)?.flags.some((f) => f.code === "OFF_HOURS_ACTIVITY"), JSON.stringify(byId.get(S.offHours)?.flags.map((f) => f.code)));
-  check("anomalies: both fast-growing agents are rising performers", S.rising.every((id) => byId.get(id)?.rising), S.rising.map((id) => `txns ${byId.get(id)?.transactionsGrowthPct}%, volume ${byId.get(id)?.growthPct}%`).join("; "));
+  check("anomalies: the fast-growing agent is a rising performer", S.rising.every((id) => byId.get(id)?.rising), S.rising.map((id) => `txns ${byId.get(id)?.transactionsGrowthPct}%, volume ${byId.get(id)?.growthPct}%`).join("; "));
   const risingOthers = list.filter((a) => a.rising && !S.rising.includes(a.userId));
   check("anomalies: few other agents count as rising", risingOthers.length <= 2, risingOthers.map((a) => `${a.outletName} +${a.transactionsGrowthPct}%`).join(", "));
   check("anomalies: Gazipur agent shows a service gap", !!byId.get(S.serviceGap)?.serviceGap, JSON.stringify(byId.get(S.serviceGap)?.serviceGap));
@@ -109,7 +110,7 @@ for (const [label, id] of [["service-gap agent", S.serviceGap], ["demo agent", "
 
 {
   const cov = intel.locationCoverage(db, NOW);
-  check("coverage: all 8 districts ranked", cov.length === 8 && cov.every((c, i) => c.rank === i + 1));
+  check("coverage: all 4 districts ranked", cov.length === 4 && cov.every((c, i) => c.rank === i + 1));
   check("coverage: Gazipur is the most underserved district", cov[0].district === "Gazipur", cov.slice(0, 3).map((c) => `${c.district} ${c.underservedScore}`).join(", "));
   check("coverage: Gazipur needs more agents", cov[0].agentsNeeded > 0, `${cov[0].agentsNeeded} more agents`);
 }

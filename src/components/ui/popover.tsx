@@ -54,16 +54,25 @@ export function Popover({
   );
 }
 
-export function Avatar({ name, className }: { name: string; className?: string }) {
+/** Profile picture, or the name's initials when there is none (or it fails to load). */
+export function Avatar({ name, src, className }: { name: string; src?: string | null; className?: string }) {
+  const [failed, setFailed] = useState<string | null>(null);
+  const showImage = !!src && failed !== src;
   return (
     <span
       className={cn(
-        "grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-100 text-sm font-bold text-accent-700 ring-2 ring-white",
+        "grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-accent-100 text-sm font-bold text-accent-700 ring-2 ring-white",
         className,
       )}
       aria-hidden
     >
-      {initials(name)}
+      {showImage ? (
+        // A plain <img>: pictures come from an authenticated route the image optimizer can't fetch.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" onError={() => setFailed(src)} />
+      ) : (
+        initials(name)
+      )}
     </span>
   );
 }

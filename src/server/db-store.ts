@@ -1,21 +1,24 @@
 import postgres from "postgres";
-import { ApiError } from "@/services/errors";
 import { DB_VERSION, type AiInsightRecord, type DbState } from "@/services/mock/schema";
 import { assertInvariants, type StoreBackend } from "@/services/mock/store";
 
 /**
  * PostgreSQL (Supabase) persistence for the API handlers.
  *
- * Every call loads the current rows, so edits made directly in Supabase show
- * up in the app straight away. `write()` runs as ONE database transaction:
- *   1. take a global advisory lock (writes are serialised, like the mock queue)
- *   2. load all rows, let the handler mutate a copy
- *   3. check ledger invariants
- *   4. upsert changed rows / delete removed rows, then COMMIT
- * Any error rolls everything back, so a payment can never be half-saved.
+ * The server keeps the whole database in memory and reloads it only when it
+ * changed. Triggers bump `app_state.version` on every insert/update/delete
+ * (supabase/migrations/20261006_change_counter.sql), so each request reads
+ * that one number; edits made directly in Supabase still show up straight
+ * away. Without that migration every request loads all tables (slow).
  *
- * This loads whole tables per request: right for a prototype or hackathon
- * (thousands of rows), not for production volumes.
+ * `write()` runs as ONE database transaction:
+ *   1. take a global advisory lock (writes are serialised, like the mock queue)
+ *   2. use the cached rows if the version still matches (else load them),
+ *      let the handler mutate a copy
+ *   3. check ledger invariants
+ *   4. upsert changed rows / delete removed rows, then COMMIT and keep the
+ *      copy as the new cache
+ * Any error rolls everything back, so a payment can never be half-saved.
  */
 
 type Row = Record<string, unknown>;
@@ -73,7 +76,7 @@ const TABLES: TableSpec[] = [
  * been migrated yet they are skipped on save instead of failing every write.
  */
 const OPTIONAL_COLUMNS: Record<string, string[]> = {
-  users: ["language"],
+  users: ["language", "avatar_id"],
   agent_profiles: ["district", "area"],
   merchant_businesses: ["district", "area"],
 };
@@ -101,7 +104,17 @@ type Sql = postgres.Sql;
  * (`max_pipeline` is a postgres.js option missing from its type definitions.)
  */
 const NO_PIPELINING = { max_pipeline: 0 };
-const globalForDb = globalThis as unknown as { __koshSql?: Sql; __koshColumns?: Promise<ColumnTypes> };
+interface Cache {
+  /** app_state.version the cached rows correspond to. */
+  version: string;
+  db: DbState;
+}
+const globalForDb = globalThis as unknown as {
+  __koshSql?: Sql;
+  __koshColumns?: Promise<ColumnTypes>;
+  __koshCache?: Cache | null;
+  __koshCounter?: { available: boolean; checkedAt: number };
+};
 
 function sql(): Sql {
   if (globalForDb.__koshSql) return globalForDb.__koshSql;
@@ -147,6 +160,36 @@ function columnTypes(): Promise<ColumnTypes> {
     throw e;
   });
   return globalForDb.__koshColumns;
+}
+
+/* ───────────── Change counter (in-memory cache) ───────────── */
+
+/** Whether the change-counter migration has run. Re-checked every 30 s until it has. */
+async function hasCounter(): Promise<boolean> {
+  const known = globalForDb.__koshCounter;
+  if (known && (known.available || Date.now() - known.checkedAt < 30_000)) return known.available;
+  const [{ ok }] = await sql()<{ ok: boolean }[]>`select to_regclass('public.app_state') is not null as ok`;
+  if (!ok) warnOnce("app_state", "[db] app_state is missing — run supabase/migrations/20261006_change_counter.sql to cache the database (every request reloads it until then).");
+  globalForDb.__koshCounter = { available: ok, checkedAt: Date.now() };
+  return ok;
+}
+
+/**
+ * Finds the `v` column in the result of a multi-statement ("simple") query. postgres.js
+ * returns one row list per statement, except when the last statement has no rows (e.g.
+ * COMMIT): then it returns a single flat list.
+ */
+function versionFrom(result: unknown): string {
+  const lists = (Array.isArray(result) && Array.isArray(result[0]) ? result : [result]) as { v?: unknown }[][];
+  for (let i = lists.length - 1; i >= 0; i--) {
+    for (const row of lists[i] ?? []) if (typeof row?.v === "string") return row.v;
+  }
+  throw new Error("app_state.version missing from query result");
+}
+
+async function readVersion(q: Sql): Promise<string> {
+  const [{ v }] = await q<{ v: string }[]>`select version::text as v from app_state where id = 1`;
+  return v;
 }
 
 /* ───────────── Record ⇄ row mapping ───────────── */
@@ -200,48 +243,51 @@ function decodeJson(raw: unknown): unknown {
   }
 }
 
-/** JSON with object keys sorted — Postgres jsonb does not keep key order. */
-function stable(v: unknown): string {
-  if (v === undefined || v === null) return "null";
-  if (Array.isArray(v)) return `[${v.map(stable).join(",")}]`;
-  if (typeof v === "object") {
-    return `{${Object.keys(v as Row).sort().map((k) => `${JSON.stringify(k)}:${stable((v as Row)[k])}`).join(",")}}`;
+/** Deep equality for plain JSON-like values (key order ignored; undefined treated as null). */
+function equal(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === undefined || a === null || b === undefined || b === null) return (a ?? null) === (b ?? null);
+  if (typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    const bb = b as unknown[];
+    return a.length === bb.length && a.every((v, i) => equal(v, bb[i]));
   }
-  return JSON.stringify(v);
-}
-
-function same(a: Row, b: Row) {
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-  for (const k of keys) {
-    if (stable(a[k]) !== stable(b[k])) return false;
-  }
+  const ar = a as Row;
+  const br = b as Row;
+  for (const k of Object.keys(ar)) if (!equal(ar[k], br[k])) return false;
+  for (const k of Object.keys(br)) if (!(k in ar) && !equal(undefined, br[k])) return false;
   return true;
 }
 
-function rowsOf(spec: TableSpec, db: DbState): Map<string, Row> {
+/** Records of one table keyed by primary key (unconverted — rows are built only for changed records). */
+function recordsOf(spec: TableSpec, db: DbState): Map<string, Row> {
   const out = new Map<string, Row>();
   const collection = db[spec.key] as unknown;
   if (spec.map) {
-    for (const [k, v] of Object.entries(collection as Record<string, Row>)) {
-      out.set(k, toRow(spec, { [camel(spec.map.keyColumn)]: k, ...v }));
-    }
+    for (const [k, v] of Object.entries(collection as Record<string, Row>)) out.set(k, v);
   } else {
-    for (const rec of collection as Row[]) {
-      const row = toRow(spec, rec);
-      out.set(String(row[spec.pk]), row);
-    }
+    const pkField = camel(spec.pk);
+    for (const rec of collection as Row[]) out.set(String(rec[pkField]), rec);
   }
   return out;
 }
 
+function rowOf(spec: TableSpec, pk: string, rec: Row): Row {
+  return spec.map ? toRow(spec, { [camel(spec.map.keyColumn)]: pk, ...rec }) : toRow(spec, rec);
+}
+
 /* ───────────── Load ───────────── */
 
-async function loadAll(tx: Sql): Promise<DbState> {
+async function loadAll(tx: Sql, withVersion: boolean): Promise<{ db: DbState; version: string | null }> {
   const types = await columnTypes();
   const select = TABLES.filter((t) => types.has(t.table))
     .map((t) => `'${t.table}', (select coalesce(json_agg(r), '[]'::json) from "${t.table}" r)`)
     .join(", ");
-  const [{ data }] = await tx.unsafe<{ data: Record<string, Row[]> }[]>(`select json_build_object(${select}) as data`);
+  // The version is read in the same statement, so it matches the rows exactly.
+  const [{ data, version }] = await tx.unsafe<{ data: Record<string, Row[]>; version: string | null }[]>(
+    `select json_build_object(${select}) as data, ${withVersion ? "(select version::text from app_state where id = 1)" : "null::text"} as version`,
+  );
 
   const db = { version: DB_VERSION, seededAt: new Date().toISOString() } as DbState;
   for (const spec of TABLES) {
@@ -258,7 +304,7 @@ async function loadAll(tx: Sql): Promise<DbState> {
       (db as unknown as Record<string, unknown>)[spec.key] = rows;
     }
   }
-  return db;
+  return { db, version };
 }
 
 /* ───────────── Save (diff) ───────────── */
@@ -269,14 +315,19 @@ function toParam(v: unknown): string | null {
   return String(v);
 }
 
-async function saveDiff(tx: Sql, before: DbState, after: DbState) {
+/** Saves the difference; returns how many statements ran (each one bumps app_state.version once). */
+async function saveDiff(tx: Sql, before: DbState, after: DbState): Promise<number> {
   const types = await columnTypes();
+  let statements = 0;
   for (const spec of TABLES) {
     const cols = types.get(spec.table);
-    const old = rowsOf(spec, before);
-    const next = rowsOf(spec, after);
+    const old = recordsOf(spec, before);
+    const next = recordsOf(spec, after);
 
-    const changed = [...next.entries()].filter(([pk, row]) => !old.has(pk) || !same(old.get(pk)!, row)).map(([, row]) => row);
+    const changed: Row[] = [];
+    for (const [pk, rec] of next) {
+      if (!old.has(pk) || !equal(old.get(pk), rec)) changed.push(rowOf(spec, pk, rec));
+    }
     const removed = [...old.keys()].filter((pk) => !next.has(pk));
 
     if (!cols) {
@@ -309,15 +360,18 @@ async function saveDiff(tx: Sql, before: DbState, after: DbState) {
            on conflict ("${spec.pk}") do ${update ? `update set ${update}` : "nothing"}`,
           params,
         );
+        statements++;
       }
     }
     if (removed.length) {
       for (let i = 0; i < removed.length; i += 5000) {
         const chunk = removed.slice(i, i + 5000);
         await tx.unsafe(`delete from "${spec.table}" where "${spec.pk}" in (${chunk.map((_, j) => `$${j + 1}`).join(", ")})`, chunk);
+        statements++;
       }
     }
   }
+  return statements;
 }
 
 /* ───────────── Backend ───────────── */
@@ -326,7 +380,13 @@ const WRITE_LOCK = 7_274_201; // arbitrary app-wide advisory-lock id
 
 export const dbStore: StoreBackend = {
   async read(fn) {
-    const db = await loadAll(sql());
+    const counter = await hasCounter();
+    if (counter) {
+      const cache = globalForDb.__koshCache;
+      if (cache && cache.version === (await readVersion(sql()))) return fn(cache.db);
+    }
+    const { db, version } = await loadAll(sql(), counter);
+    if (version !== null) globalForDb.__koshCache = { version, db };
     return fn(db);
   },
 
@@ -335,19 +395,53 @@ export const dbStore: StoreBackend = {
     // Introspect before taking a pooled connection for the transaction —
     // doing it inside would wait for a second connection (deadlock at pool size 1).
     await columnTypes();
+    const counter = await hasCounter();
+    let nextCache: Cache | null = null;
     // A reserved connection with explicit BEGIN/COMMIT: sql.begin() needs
     // pipelining, which is turned off for the transaction pooler (see NO_PIPELINING).
     const tx = await sql().reserve();
     try {
-      await tx`begin`;
       try {
-        await tx`select pg_advisory_xact_lock(${WRITE_LOCK})`;
-        const current = await loadAll(tx);
+        // BEGIN + lock + version in ONE round trip (a "simple" multi-statement query; no parameters).
+        const opening = await tx
+          .unsafe(`begin; select pg_advisory_xact_lock(${WRITE_LOCK});${counter ? " select version::text as v from app_state where id = 1;" : ""}`)
+          .simple();
+        const lockedVersion = counter ? versionFrom(opening) : null;
+
+        let current: DbState;
+        let base: string | null;
+        const cache = globalForDb.__koshCache;
+        if (counter && cache && cache.version === lockedVersion) {
+          current = cache.db;
+          base = cache.version;
+        } else {
+          const loaded = await loadAll(tx, counter);
+          current = loaded.db;
+          base = loaded.version;
+        }
         const draft = structuredClone(current);
         result = await fn(draft);
         assertInvariants(draft);
-        await saveDiff(tx, current, draft);
-        await tx`commit`;
+        const statements = await saveDiff(tx, current, draft);
+
+        // Read the new version and COMMIT in one round trip. Keep the result as the cache only if
+        // nobody else changed the database meanwhile (e.g. an edit in the Supabase dashboard):
+        // then the version moved by exactly our statements.
+        let after = base;
+        if (base !== null && statements > 0) {
+          const closing = await tx.unsafe("select version::text as v from app_state where id = 1; commit").simple();
+          try {
+            after = versionFrom(closing);
+          } catch {
+            after = null; // already committed — just don't keep a cache we can't verify
+          }
+        } else {
+          await tx`commit`;
+        }
+        if (base !== null && after !== null) {
+          nextCache = BigInt(after) === BigInt(base) + BigInt(statements) ? { version: after, db: draft } : null;
+        }
+        if (counter) globalForDb.__koshCache = nextCache;
       } catch (err) {
         await tx`rollback`.catch(() => undefined);
         throw err;
@@ -356,10 +450,6 @@ export const dbStore: StoreBackend = {
       tx.release();
     }
     return result;
-  },
-
-  async reset() {
-    throw new ApiError("NOT_SUPPORTED", "Resetting is disabled when the app is connected to a real database.");
   },
 };
 
@@ -370,27 +460,51 @@ export const dbStore: StoreBackend = {
  */
 export async function recordAiNote(input: { rateKey: string; limit: number; windowMs: number; note: AiInsightRecord | null }) {
   const types = await columnTypes();
+  const counter = await hasCounter();
   const tx = await sql().reserve();
   try {
     await tx`begin`;
     try {
       await tx`select pg_advisory_xact_lock(${WRITE_LOCK})`;
+      const before = counter ? await readVersion(tx) : null;
+      let statements = 1;
       const now = Date.now();
       // Same fixed window as consumeRateLimit(): a new window starts at 1; otherwise count up to the limit.
-      await tx`
+      const [bucket] = await tx<{ count: number; reset_at: string }[]>`
         insert into rate_limits (key, count, reset_at) values (${input.rateKey}, 1, ${now + input.windowMs})
         on conflict (key) do update set
           count = case when rate_limits.reset_at <= ${now} then 1 else least(rate_limits.count + 1, ${input.limit}) end,
-          reset_at = case when rate_limits.reset_at <= ${now} then excluded.reset_at else rate_limits.reset_at end`;
-      const note = input.note;
-      if (note && types.has("ai_insights")) {
+          reset_at = case when rate_limits.reset_at <= ${now} then excluded.reset_at else rate_limits.reset_at end
+        returning count, reset_at::text as reset_at`;
+      const note = input.note && types.has("ai_insights") ? input.note : null;
+      if (note) {
         // Keep one entry per user, kind and language, and nothing older than two days.
         await tx`delete from ai_insights where created_at < now() - interval '2 days' or (user_id = ${note.userId} and kind = ${note.kind} and language = ${note.language})`;
         await tx`
           insert into ai_insights (id, user_id, kind, language, input_hash, payload, model, created_at)
           values (${note.id}, ${note.userId}, ${note.kind}, ${note.language}, ${note.inputHash}, ${JSON.stringify(note.payload)}::text::jsonb, ${note.model}, ${note.createdAt}::timestamptz)`;
+        statements += 2;
       }
+      const after = counter ? await readVersion(tx) : null;
       await tx`commit`;
+
+      // Apply the same change to the in-memory copy if it was current and nobody else wrote meanwhile.
+      const cache = globalForDb.__koshCache;
+      if (cache && before !== null && after !== null && cache.version === before && BigInt(after) === BigInt(before) + BigInt(statements)) {
+        const cutoff = Date.now() - 2 * 86_400_000;
+        const aiInsights = note
+          ? [
+              ...cache.db.aiInsights.filter(
+                (a) => Date.parse(a.createdAt) >= cutoff && !(a.userId === note.userId && a.kind === note.kind && a.language === note.language),
+              ),
+              note,
+            ]
+          : cache.db.aiInsights;
+        const rateLimits = { ...cache.db.rateLimits, [input.rateKey]: { count: bucket.count, resetAt: Number(bucket.reset_at) } };
+        globalForDb.__koshCache = { version: after, db: { ...cache.db, aiInsights, rateLimits } };
+      } else if (counter) {
+        globalForDb.__koshCache = null;
+      }
     } catch (err) {
       await tx`rollback`.catch(() => undefined);
       throw err;
@@ -398,4 +512,91 @@ export async function recordAiNote(input: { rateKey: string; limit: number; wind
   } finally {
     tx.release();
   }
+}
+
+/* ───────────── Profile pictures (bytes kept out of the snapshot) ───────────── */
+
+export interface AvatarRow {
+  id: string;
+  userId: string | null;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+}
+
+const globalForAvatars = globalThis as unknown as { __koshAvatarsReady?: boolean };
+
+/** True once supabase/migrations/20261006_profile_pictures.sql has been run. */
+export async function avatarsReady(): Promise<boolean> {
+  if (globalForAvatars.__koshAvatarsReady) return true;
+  const types = await columnTypes();
+  const [{ ok }] = await sql()<{ ok: boolean }[]>`select to_regclass('public.avatars') is not null as ok`;
+  const ready = ok && !!types.get("users")?.has("avatar_id");
+  // Only cache success, so running the migration takes effect without a restart.
+  if (ready) globalForAvatars.__koshAvatarsReady = true;
+  return ready;
+}
+
+export async function saveAvatar(row: AvatarRow & { data: Uint8Array }) {
+  await sql()`
+    insert into avatars (id, user_id, mime_type, size_bytes, sha256, data)
+    values (${row.id}, ${row.userId}, ${row.mimeType}, ${row.sizeBytes}, ${row.sha256}, ${Buffer.from(row.data)})`;
+}
+
+export async function findAvatar(id: string): Promise<(AvatarRow & { createdAt: string }) | null> {
+  const [r] = await sql()<{ id: string; user_id: string | null; mime_type: string; size_bytes: number; sha256: string; created_at: Date }[]>`
+    select id, user_id, mime_type, size_bytes, sha256, created_at from avatars where id = ${id}`;
+  return r ? { id: r.id, userId: r.user_id, mimeType: r.mime_type, sizeBytes: r.size_bytes, sha256: r.sha256, createdAt: new Date(r.created_at).toISOString() } : null;
+}
+
+export async function readAvatar(id: string): Promise<{ mimeType: string; sha256: string; data: Buffer } | null> {
+  const [r] = await sql()<{ mime_type: string; sha256: string; data: Buffer }[]>`select mime_type, sha256, data from avatars where id = ${id}`;
+  return r ? { mimeType: r.mime_type, sha256: r.sha256, data: r.data } : null;
+}
+
+/** Gives a registration upload to the new account. */
+export async function assignAvatar(id: string, userId: string) {
+  await sql()`update avatars set user_id = ${userId} where id = ${id} and user_id is null`;
+}
+
+/**
+ * Deletes the user's pictures other than `keep`, and registration uploads
+ * nobody claimed within a day.
+ */
+export async function pruneAvatars(userId: string, keep: string | null) {
+  await sql()`delete from avatars where (user_id = ${userId} and id is distinct from ${keep}) or (user_id is null and created_at < now() - interval '1 day')`;
+}
+
+/* ───────────── Verification document files (bytes kept out of the snapshot) ───────────── */
+
+const globalForDocs = globalThis as unknown as { __koshDocFilesReady?: boolean };
+
+/** True once supabase/migrations/20261007_document_files.sql has been run. */
+export async function documentFilesReady(): Promise<boolean> {
+  if (globalForDocs.__koshDocFilesReady) return true;
+  const [{ ok }] = await sql()<{ ok: boolean }[]>`select to_regclass('public.document_files') is not null as ok`;
+  // Only cache success, so running the migration takes effect without a restart.
+  if (ok) globalForDocs.__koshDocFilesReady = true;
+  return ok;
+}
+
+/** Stores the bytes of an uploaded document (its verification_documents row must already exist). */
+export async function saveDocumentFile(row: { documentId: string; mimeType: string; sha256: string; data: Uint8Array }) {
+  await sql()`
+    insert into document_files (document_id, mime_type, size_bytes, sha256, data)
+    values (${row.documentId}, ${row.mimeType}, ${row.data.byteLength}, ${row.sha256}, ${Buffer.from(row.data)})`;
+}
+
+export async function readDocumentFile(documentId: string): Promise<{ mimeType: string; sha256: string; data: Buffer } | null> {
+  if (!(await documentFilesReady())) return null;
+  const [r] = await sql()<{ mime_type: string; sha256: string; data: Buffer }[]>`
+    select mime_type, sha256, data from document_files where document_id = ${documentId}`;
+  return r ? { mimeType: r.mime_type, sha256: r.sha256, data: r.data } : null;
+}
+
+/** An unrevoked, unexpired session (for routes outside /api/rpc that only need "is signed in"). */
+export async function sessionActive(sessionId: string): Promise<boolean> {
+  const [r] = await sql()<{ ok: boolean }[]>`
+    select exists(select 1 from sessions where id = ${sessionId} and revoked_at is null and expires_at > now()) as ok`;
+  return !!r?.ok;
 }

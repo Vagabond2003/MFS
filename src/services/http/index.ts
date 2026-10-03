@@ -89,7 +89,7 @@ export const httpApi: ApiClient = {
     resetPassword: (input) => postJson("/auth/password-reset/confirm", input),
   },
   registration: {
-    sendPhoneOtp: (phone) => postJson("/register/otp", { phone }),
+    sendPhoneOtp: (phone, email) => postJson("/register/otp", { phone, email: email || undefined }),
     registerPersonal: (input) => postJson("/register/personal", input),
     registerAgent: (input) => postJson("/register/agent", input),
     registerMerchant: (input) => postJson("/register/merchant", input),
@@ -127,6 +127,7 @@ export const httpApi: ApiClient = {
   profile: {
     get: () => get("/profile"),
     update: (input) => request("PATCH", "/profile", { body: input }),
+    setAvatar: (uploadId) => (uploadId ? request("POST", "/profile/avatar", { body: { uploadId } }) : request("DELETE", "/profile/avatar")),
   },
   security: {
     changePassword: (input) => postJson("/security/password", input),
@@ -185,8 +186,5 @@ export const httpApi: ApiClient = {
     disputes: (q) => get("/admin/disputes", { ...q }),
     updateDispute: (id, status, resolution) => request("PATCH", `/admin/disputes/${encodeURIComponent(id)}`, { body: { status, resolution } }),
     auditLogs: (q) => get("/admin/audit-logs", { ...q }),
-  },
-  dev: {
-    resetDemoData: notSupported,
   },
 };
