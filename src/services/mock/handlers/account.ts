@@ -1,4 +1,4 @@
-import { emailSchema, passwordSchema, pinSchema, addressSchema } from "@/lib/validation";
+import { emailSchema, passwordSchema, pinSchema, addressSchema, languageSchema } from "@/lib/validation";
 import { maskPhone } from "@/lib/utils";
 import type {
   LoginEvent,
@@ -189,6 +189,11 @@ export const profile: ProfileApi = {
         const p = db.personalProfiles.find((x) => x.userId === user.id) ?? db.agentProfiles.find((x) => x.userId === user.id);
         if (!p) throw new ApiError("VALIDATION", "Business address changes require re-verification. Contact support.");
         p.address = parsed.data;
+      }
+      if (input.language !== undefined) {
+        const parsed = languageSchema.safeParse(input.language);
+        if (!parsed.success) throw new ApiError("VALIDATION", parsed.error.issues[0].message);
+        user.language = parsed.data;
       }
       user.updatedAt = new Date().toISOString();
       audit(db, { actor: user, action: "PROFILE_UPDATED", target: user.id });

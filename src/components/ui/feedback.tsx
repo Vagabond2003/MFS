@@ -1,10 +1,14 @@
+"use client";
+
 import { CircleAlert, CircleCheck, Info, LoaderCircle, RefreshCw, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/hooks/use-i18n";
 import { Button } from "./button";
 
-export function Spinner({ className, label = "Loading" }: { className?: string; label?: string }) {
+export function Spinner({ className, label }: { className?: string; label?: string }) {
+  const { t } = useI18n();
   return (
-    <span role="status" aria-label={label} className="inline-flex">
+    <span role="status" aria-label={label ?? t("Loading")} className="inline-flex">
       <LoaderCircle className={cn("h-5 w-5 animate-spin text-accent-600", className)} aria-hidden />
     </span>
   );
@@ -14,22 +18,24 @@ export function Skeleton({ className }: { className?: string }) {
   return <div className={cn("animate-pulse rounded-lg bg-slate-200/70", className)} aria-hidden />;
 }
 
-export function PageLoader({ label = "Loading…" }: { label?: string }) {
+export function PageLoader({ label }: { label?: string }) {
+  const { t } = useI18n();
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-sm text-slate-500" role="status">
       <LoaderCircle className="h-7 w-7 animate-spin text-accent-600" aria-hidden />
-      {label}
+      {label ?? t("Loading…")}
     </div>
   );
 }
 
-export function FullScreenLoader({ label = "Loading…" }: { label?: string }) {
+export function FullScreenLoader({ label }: { label?: string }) {
+  const { t } = useI18n();
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-canvas" role="status">
       <div className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-600 text-lg font-extrabold text-white shadow-lg">K</div>
       <div className="flex items-center gap-2 text-sm text-slate-500">
         <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
-        {label}
+        {label ?? t("Loading…")}
       </div>
     </div>
   );
@@ -59,7 +65,7 @@ export function EmptyState({
 }
 
 export function ErrorState({
-  title = "Something went wrong",
+  title,
   message,
   onRetry,
   className,
@@ -69,16 +75,17 @@ export function ErrorState({
   onRetry?: () => void;
   className?: string;
 }) {
+  const { t } = useI18n();
   return (
     <div className={cn("flex flex-col items-center justify-center px-6 py-12 text-center", className)} role="alert">
       <div className="mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-rose-50 text-rose-500">
         <CircleAlert className="h-6 w-6" aria-hidden />
       </div>
-      <h3 className="text-[15px] font-semibold text-slate-900">{title}</h3>
+      <h3 className="text-[15px] font-semibold text-slate-900">{title ?? t("Something went wrong")}</h3>
       {message && <p className="mt-1 max-w-sm text-sm text-slate-500">{message}</p>}
       {onRetry && (
         <Button variant="outline" size="sm" className="mt-5" onClick={onRetry}>
-          <RefreshCw className="h-4 w-4" aria-hidden /> Try again
+          <RefreshCw className="h-4 w-4" aria-hidden /> {t("Try again")}
         </Button>
       )}
     </div>
@@ -107,11 +114,11 @@ export function Alert({
   action?: React.ReactNode;
   className?: string;
 }) {
-  const t = alertTones[tone];
+  const style = alertTones[tone];
   return (
-    <div className={cn("flex flex-col gap-3 rounded-xl border px-4 py-3 sm:flex-row sm:items-center", t.box, className)} role={tone === "danger" ? "alert" : "status"}>
+    <div className={cn("flex flex-col gap-3 rounded-xl border px-4 py-3 sm:flex-row sm:items-center", style.box, className)} role={tone === "danger" ? "alert" : "status"}>
       <div className="flex flex-1 items-start gap-3">
-        <span className="mt-0.5 shrink-0">{t.icon}</span>
+        <span className="mt-0.5 shrink-0">{style.icon}</span>
         <div className="text-sm">
           {title && <div className="font-semibold">{title}</div>}
           {children && <div className={cn(title && "mt-0.5", "opacity-90")}>{children}</div>}

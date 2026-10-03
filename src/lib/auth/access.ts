@@ -1,4 +1,5 @@
 import type { Role } from "@/types/domain";
+import { msg } from "@/lib/i18n/core";
 
 /**
  * Route-level RBAC — the single source of truth used by BOTH:
@@ -15,11 +16,12 @@ export const ROLE_HOME: Record<Role, string> = {
   ADMIN: "/admin",
 };
 
+/** English — render with `t()`. */
 export const ROLE_LABEL: Record<Role, string> = {
-  PERSONAL: "Personal",
-  AGENT: "Agent",
-  MERCHANT: "Merchant",
-  ADMIN: "Admin",
+  PERSONAL: msg("Personal"),
+  AGENT: msg("Agent"),
+  MERCHANT: msg("Merchant"),
+  ADMIN: msg("Admin"),
 };
 
 interface AccessRule {

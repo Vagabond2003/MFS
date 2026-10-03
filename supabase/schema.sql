@@ -95,6 +95,7 @@ create table users (
   pin_hash           text            not null,   -- PBKDF2-SHA256, 5-digit PIN
   status             account_status  not null,
   two_factor_enabled boolean         not null default false,
+  language           text            not null default 'en' check (language in ('en', 'bn')),  -- interface language
   is_demo            boolean         not null default false,
   failed_login_count int             not null default 0,
   locked_until       timestamptz,

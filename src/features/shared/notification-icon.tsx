@@ -11,20 +11,22 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { msg } from "@/lib/i18n/core";
 import type { NotificationType } from "@/types/domain";
 
 const MAP: Record<NotificationType, { icon: LucideIcon; className: string; label: string }> = {
-  PAYMENT_SUCCESS: { icon: CircleCheck, className: "bg-emerald-50 text-emerald-600", label: "Payments" },
-  PAYMENT_FAILED: { icon: CircleX, className: "bg-rose-50 text-rose-600", label: "Payments" },
-  MONEY_RECEIVED: { icon: ArrowDownLeft, className: "bg-emerald-50 text-emerald-600", label: "Money in" },
-  MONEY_SENT: { icon: Send, className: "bg-slate-100 text-slate-600", label: "Money out" },
-  ACCOUNT_VERIFICATION: { icon: BadgeCheck, className: "bg-sky-50 text-sky-600", label: "Account" },
-  SECURITY_ALERT: { icon: ShieldAlert, className: "bg-amber-50 text-amber-600", label: "Security" },
-  MERCHANT_PAYMENT: { icon: Store, className: "bg-indigo-50 text-indigo-600", label: "Payments" },
-  AGENT_SETTLEMENT: { icon: Landmark, className: "bg-violet-50 text-violet-600", label: "Settlement" },
-  SYSTEM_ANNOUNCEMENT: { icon: Megaphone, className: "bg-slate-100 text-slate-600", label: "Announcements" },
+  PAYMENT_SUCCESS: { icon: CircleCheck, className: "bg-emerald-50 text-emerald-600", label: msg("Payments") },
+  PAYMENT_FAILED: { icon: CircleX, className: "bg-rose-50 text-rose-600", label: msg("Payments") },
+  MONEY_RECEIVED: { icon: ArrowDownLeft, className: "bg-emerald-50 text-emerald-600", label: msg("Money in") },
+  MONEY_SENT: { icon: Send, className: "bg-slate-100 text-slate-600", label: msg("Money out") },
+  ACCOUNT_VERIFICATION: { icon: BadgeCheck, className: "bg-sky-50 text-sky-600", label: msg("Account") },
+  SECURITY_ALERT: { icon: ShieldAlert, className: "bg-amber-50 text-amber-600", label: msg("Security") },
+  MERCHANT_PAYMENT: { icon: Store, className: "bg-indigo-50 text-indigo-600", label: msg("Payments") },
+  AGENT_SETTLEMENT: { icon: Landmark, className: "bg-violet-50 text-violet-600", label: msg("Settlement") },
+  SYSTEM_ANNOUNCEMENT: { icon: Megaphone, className: "bg-slate-100 text-slate-600", label: msg("Announcements") },
 };
 
+/** English — render with `t()`. */
 export function notificationCategory(type: NotificationType) {
   return MAP[type].label;
 }

@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
 import { MerchantDashboardView } from "@/features/merchant/dashboard";
+import { titled } from "@/lib/i18n/server";
 
-export const metadata: Metadata = { title: "Business Overview" };
+export const generateMetadata = titled("Business Overview");
 
 export default function Page() {
   return <MerchantDashboardView />;

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, getApiMode, readSessionClaims, signSessionToken } from "@/lib/auth/session-token";
 import { resolveMethod, runCall, type CallContext } from "@/server/rpc";
 import type { UploadPurpose } from "@/services/contracts";
+import { DEFAULT_LANG, LANG_COOKIE, isLang, translator } from "@/lib/i18n/core";
 
 export const runtime = "nodejs";
 
@@ -60,14 +61,19 @@ export async function POST(request: NextRequest) {
   };
 
   const result = await runCall(ctx, fn, args);
+  // Error text goes back in the caller's interface language.
+  const langCookie = request.cookies.get(LANG_COOKIE)?.value;
+  const t = translator(isLang(langCookie) ? langCookie : DEFAULT_LANG);
   const res = result.ok
     ? NextResponse.json({ data: result.data ?? null })
     : NextResponse.json(
         {
           error: {
             code: result.error.code,
-            message: result.error.message,
-            fieldErrors: result.error.fieldErrors,
+            message: t(result.error.message),
+            fieldErrors: result.error.fieldErrors
+              ? Object.fromEntries(Object.entries(result.error.fieldErrors).map(([k, v]) => [k, t(v)]))
+              : undefined,
             details: result.error.details,
           },
         },

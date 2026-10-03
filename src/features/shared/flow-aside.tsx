@@ -1,6 +1,9 @@
+"use client";
+
 import { FlaskConical } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { api } from "@/services";
+import { useI18n } from "@/hooks/use-i18n";
 
 export function InfoCard({ title, items }: { title: string; items: { label: string; value: React.ReactNode }[] }) {
   return (
@@ -20,11 +23,12 @@ export function InfoCard({ title, items }: { title: string; items: { label: stri
 
 /** Testing tips for the development providers (payment gateway, SMS). Hidden with an external backend. */
 export function DemoHint({ children }: { children: React.ReactNode }) {
+  const { t } = useI18n();
   if (api.mode === "http") return null;
   return (
     <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/70 p-4 text-sm text-amber-900">
       <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
-        <FlaskConical className="h-3.5 w-3.5" aria-hidden /> Testing tips
+        <FlaskConical className="h-3.5 w-3.5" aria-hidden /> {t("Testing tips")}
       </p>
       <div className="space-y-1 text-[13px] leading-relaxed">{children}</div>
     </div>

@@ -1,6 +1,8 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format, formatDistanceToNowStrict, isToday, isYesterday } from "date-fns";
+import { bn } from "date-fns/locale/bn";
+import { msg, type Lang } from "@/lib/i18n/core";
 import type { Money } from "@/types/domain";
 
 export function cn(...inputs: ClassValue[]) {
@@ -57,33 +59,37 @@ export function percentChange(current: number, previous: number): number | null 
 }
 
 /* ───────────── Dates ───────────── */
+// Pass the interface language (`lang` from useI18n) for Bengali month/day names.
 
-export function formatDateTime(iso: string) {
-  return format(new Date(iso), "d MMM yyyy, h:mm a");
+const dateLocale = (lang: Lang) => (lang === "bn" ? { locale: bn } : undefined);
+
+export function formatDateTime(iso: string, lang: Lang = "en") {
+  return format(new Date(iso), "d MMM yyyy, h:mm a", dateLocale(lang));
 }
 
-export function formatDate(iso: string) {
-  return format(new Date(iso), "d MMM yyyy");
+export function formatDate(iso: string, lang: Lang = "en") {
+  return format(new Date(iso), "d MMM yyyy", dateLocale(lang));
 }
 
-export function formatTime(iso: string) {
-  return format(new Date(iso), "h:mm a");
+export function formatTime(iso: string, lang: Lang = "en") {
+  return format(new Date(iso), "h:mm a", dateLocale(lang));
 }
 
-export function formatRelative(iso: string) {
+export function formatRelative(iso: string, lang: Lang = "en") {
   const d = new Date(iso);
   const diff = Date.now() - d.getTime();
-  if (diff < 60_000) return "Just now";
-  if (diff < 86_400_000 && isToday(d)) return `${formatDistanceToNowStrict(d)} ago`;
-  if (isYesterday(d)) return `Yesterday, ${format(d, "h:mm a")}`;
-  return format(d, "d MMM, h:mm a");
+  const bnLang = lang === "bn";
+  if (diff < 60_000) return bnLang ? "এইমাত্র" : "Just now";
+  if (diff < 86_400_000 && isToday(d)) return `${formatDistanceToNowStrict(d, dateLocale(lang))} ${bnLang ? "আগে" : "ago"}`;
+  if (isYesterday(d)) return `${bnLang ? "গতকাল" : "Yesterday"}, ${format(d, "h:mm a", dateLocale(lang))}`;
+  return format(d, "d MMM, h:mm a", dateLocale(lang));
 }
 
 export function greeting(date = new Date()) {
   const h = date.getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
+  if (h < 12) return msg("Good morning");
+  if (h < 17) return msg("Good afternoon");
+  return msg("Good evening");
 }
 
 /* ───────────── Masking & identifiers ───────────── */

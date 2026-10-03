@@ -19,6 +19,7 @@ import type {
   TransactionStatus,
   TransactionType,
 } from "@/types/domain";
+import type { Lang } from "@/lib/i18n/core";
 
 export const DB_VERSION = 5;
 
@@ -35,6 +36,8 @@ export interface UserRecord {
   pinHash: string;
   status: AccountStatus;
   twoFactorEnabled: boolean;
+  /** Interface language. Missing on databases that haven't run the language migration. */
+  language?: Lang;
   isDemo: boolean;
   failedLoginCount: number;
   lockedUntil: string | null;

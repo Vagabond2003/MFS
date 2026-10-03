@@ -18,6 +18,8 @@ import {
 import { Table2 } from "lucide-react";
 import { cn, formatCount, formatMoney, formatMoneyCompact } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { useI18n } from "@/hooks/use-i18n";
+import { localizeMonths } from "@/lib/i18n/core";
 
 /**
  * Chart system
@@ -55,10 +57,11 @@ interface TooltipLikeProps {
 }
 
 function SeriesTooltip({ active, payload, label, series, format }: TooltipLikeProps & { series: Series[]; format: ValueFormat }) {
+  const { lang } = useI18n();
   if (!active || !payload?.length) return null;
   return (
     <div className="min-w-40 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-float">
-      <p className="mb-1.5 text-xs font-medium text-slate-500">{String(label ?? "")}</p>
+      <p className="mb-1.5 text-xs font-medium text-slate-500">{localizeMonths(lang, String(label ?? ""))}</p>
       <ul className="space-y-1">
         {series.map((s, i) => {
           const p = payload.find((x) => x.dataKey === s.key);
@@ -103,6 +106,7 @@ export function ChartCard({
   refreshing?: boolean;
   action?: React.ReactNode;
 }) {
+  const { t, lang } = useI18n();
   const [showTable, setShowTable] = useState(false);
   return (
     <Card className={cn("flex flex-col", className)}>
@@ -123,12 +127,12 @@ export function ChartCard({
             )}
           >
             <Table2 className="h-3.5 w-3.5" aria-hidden />
-            Table
+            {t("Table")}
           </button>
         </div>
       </div>
       {series.length >= 2 && (
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 px-5 pt-3 sm:px-6" aria-label="Legend">
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 px-5 pt-3 sm:px-6" aria-label={t("Legend")}>
           {series.map((s, i) => (
             <li key={s.key} className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
               <span
@@ -147,7 +151,7 @@ export function ChartCard({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wider text-slate-500">
-                  <th className="py-2 font-semibold">Period</th>
+                  <th className="py-2 font-semibold">{t("Period")}</th>
                   {series.map((s) => (
                     <th key={s.key} className="py-2 text-right font-semibold">
                       {s.label}
@@ -158,7 +162,7 @@ export function ChartCard({
               <tbody>
                 {data.map((row) => (
                   <tr key={String(row[xKey])} className="border-b border-slate-50">
-                    <td className="py-1.5 text-slate-600">{String(row[xKey])}</td>
+                    <td className="py-1.5 text-slate-600">{localizeMonths(lang, String(row[xKey]))}</td>
                     {series.map((s) => (
                       <td key={s.key} className="tabular py-1.5 text-right font-medium text-slate-900">
                         {fmtFull(Number(row[s.key] ?? 0), format)}
@@ -192,11 +196,12 @@ export function ColumnChart({
   format?: ValueFormat;
   height?: number;
 }) {
+  const { lang } = useI18n();
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 12, right: 12, bottom: 0, left: 0 }} barGap={2} barCategoryGap="22%">
         <CartesianGrid vertical={false} stroke={GRID} />
-        <XAxis dataKey={xKey} tickLine={false} axisLine={{ stroke: AXIS }} tick={{ fontSize: 12, fill: INK_MUTED }} interval="preserveStartEnd" minTickGap={8} />
+        <XAxis dataKey={xKey} tickLine={false} axisLine={{ stroke: AXIS }} tick={{ fontSize: 12, fill: INK_MUTED }} interval="preserveStartEnd" minTickGap={8} tickFormatter={(v) => localizeMonths(lang, String(v))} />
         <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: INK_MUTED }} tickFormatter={(v: number) => fmtAxis(v, format)} width={60} />
         <Tooltip
           cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
@@ -225,11 +230,12 @@ export function TrendChart({
   format?: ValueFormat;
   height?: number;
 }) {
+  const { lang } = useI18n();
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
         <CartesianGrid vertical={false} stroke={GRID} />
-        <XAxis dataKey={xKey} tickLine={false} axisLine={{ stroke: AXIS }} tick={{ fontSize: 12, fill: INK_MUTED }} interval="preserveStartEnd" minTickGap={12} />
+        <XAxis dataKey={xKey} tickLine={false} axisLine={{ stroke: AXIS }} tick={{ fontSize: 12, fill: INK_MUTED }} interval="preserveStartEnd" minTickGap={12} tickFormatter={(v) => localizeMonths(lang, String(v))} />
         <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: INK_MUTED }} tickFormatter={(v: number) => fmtAxis(v, format)} width={60} />
         <Tooltip
           cursor={{ stroke: "#94a3b8", strokeWidth: 1 }}
@@ -263,7 +269,7 @@ export function DonutCard({
   data,
   format = "money",
   centerLabel,
-  emptyText = "No data for this period",
+  emptyText,
 }: {
   title: string;
   description?: string;
@@ -272,9 +278,10 @@ export function DonutCard({
   centerLabel?: string;
   emptyText?: string;
 }) {
+  const { t } = useI18n();
   // Max 4 slices: anything beyond folds into "Other" (no generated hues).
   const sorted = [...data].sort((a, b) => b.value - a.value);
-  const slices = sorted.length > 4 ? [...sorted.slice(0, 3), { label: "Other", value: sorted.slice(3).reduce((s, d) => s + d.value, 0) }] : sorted;
+  const slices = sorted.length > 4 ? [...sorted.slice(0, 3), { label: t("Other"), value: sorted.slice(3).reduce((s, d) => s + d.value, 0) }] : sorted;
   const total = slices.reduce((s, d) => s + d.value, 0);
 
   return (
@@ -284,7 +291,7 @@ export function DonutCard({
         {description && <p className="mt-0.5 text-sm text-slate-500">{description}</p>}
       </div>
       {total === 0 ? (
-        <p className="flex flex-1 items-center justify-center px-6 py-12 text-sm text-slate-500">{emptyText}</p>
+        <p className="flex flex-1 items-center justify-center px-6 py-12 text-sm text-slate-500">{emptyText ?? t("No data for this period")}</p>
       ) : (
         <div className="flex flex-1 flex-col items-center gap-5 px-5 pb-5 pt-3 @lg:flex-row sm:px-6">
           <div className="relative h-44 w-44 shrink-0">
@@ -297,14 +304,14 @@ export function DonutCard({
                 </Pie>
                 <Tooltip
                   content={(p) => {
-                    const t = p as TooltipLikeProps;
-                    const item = t.payload?.[0];
-                    if (!t.active || !item) return null;
+                    const tip = p as TooltipLikeProps;
+                    const item = tip.payload?.[0];
+                    if (!tip.active || !item) return null;
                     const row = item.payload as { label: string; value: number };
                     return (
                       <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-float">
                         <span className="tabular font-semibold text-slate-900">{fmtFull(row.value, format)}</span>{" "}
-                        <span className="text-xs text-slate-500">{row.label}</span>
+                        <span className="text-xs text-slate-500">{t(row.label)}</span>
                       </div>
                     );
                   }}
@@ -320,7 +327,7 @@ export function DonutCard({
             {slices.map((s, i) => (
               <li key={s.label} className="flex items-center gap-2.5 text-sm">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: SERIES_COLORS[i] }} aria-hidden />
-                <span className="min-w-0 flex-1 truncate text-slate-600">{s.label}</span>
+                <span className="min-w-0 flex-1 truncate text-slate-600">{t(s.label)}</span>
                 <span className="tabular font-semibold text-slate-900">{fmtFull(s.value, format)}</span>
                 <span className="tabular w-11 text-right text-xs text-slate-500">{((s.value / total) * 100).toFixed(0)}%</span>
               </li>

@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 import { createPortal } from "react-dom";
 import { TriangleAlert, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/hooks/use-i18n";
 import { Button } from "./button";
 import { Field, Textarea } from "./form";
 
@@ -69,6 +70,7 @@ export function Modal({
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
   useBodyLock(open);
@@ -105,7 +107,7 @@ export function Modal({
               data-close
               onClick={onClose}
               className="-mr-2 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              aria-label="Close"
+              aria-label={t("Close")}
             >
               <X className="h-5 w-5" />
             </button>
@@ -136,6 +138,7 @@ export function Sheet({
   footer?: React.ReactNode;
   side?: "right" | "bottom";
 }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
   useBodyLock(open);
@@ -172,7 +175,7 @@ export function Sheet({
               data-close
               onClick={onClose}
               className="-mr-2 grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              aria-label="Close"
+              aria-label={t("Close")}
             >
               <X className="h-5 w-5" />
             </button>
@@ -192,7 +195,7 @@ export function ConfirmDialog({
   onConfirm,
   title,
   description,
-  confirmLabel = "Confirm",
+  confirmLabel,
   tone = "default",
   reason,
 }: {
@@ -205,6 +208,7 @@ export function ConfirmDialog({
   tone?: "default" | "danger";
   reason?: { label: string; placeholder?: string; minLength?: number };
 }) {
+  const { t } = useI18n();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const tooShort = !!reason && text.trim().length < (reason.minLength ?? 5);
@@ -229,7 +233,7 @@ export function ConfirmDialog({
       footer={
         <>
           <Button variant="outline" onClick={close} disabled={busy}>
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button
             variant={tone === "danger" ? "danger" : "primary"}
@@ -248,7 +252,7 @@ export function ConfirmDialog({
               }
             }}
           >
-            {confirmLabel}
+            {confirmLabel ?? t("Confirm")}
           </Button>
         </>
       }
@@ -256,7 +260,7 @@ export function ConfirmDialog({
       <div className="space-y-4 text-sm text-slate-600">
         <div>{description}</div>
         {reason && (
-          <Field label={reason.label} required hint={`At least ${reason.minLength ?? 5} characters. Saved to the audit log.`}>
+          <Field label={reason.label} required hint={t("At least {n} characters. Saved to the audit log.", { n: reason.minLength ?? 5 })}>
             {(p) => <Textarea {...p} value={text} onChange={(e) => setText(e.target.value)} placeholder={reason.placeholder} rows={3} />}
           </Field>
         )}

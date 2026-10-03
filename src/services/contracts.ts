@@ -40,6 +40,7 @@ import type {
   MerchantRegistrationInput,
   PersonalRegistrationInput,
 } from "@/lib/validation";
+import type { Lang } from "@/lib/i18n/core";
 
 /**
  * The API contract. The UI depends ONLY on this interface.
@@ -118,7 +119,7 @@ export interface NotificationsApi {
 
 export interface ProfileApi {
   get(): Promise<ProfileView>;
-  update(input: { email?: string | null; address?: string }): Promise<ProfileView>;
+  update(input: { email?: string | null; address?: string; language?: Lang }): Promise<ProfileView>;
 }
 
 export interface SecurityApi {

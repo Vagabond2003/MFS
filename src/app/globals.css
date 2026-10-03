@@ -9,7 +9,7 @@
  * - chart-*: validated categorical data palette (see components/charts/theme.ts).
  */
 @theme {
-  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: var(--font-jakarta), var(--font-bengali), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --color-brand-50: #eefbf6;

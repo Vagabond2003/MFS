@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { Headphones } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { LanguageToggle } from "@/components/ui/language-toggle";
+import { useI18n } from "@/hooks/use-i18n";
 import { PERSONAL_MOBILE, PERSONAL_NAV } from "@/config/navigation";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { MobileBottomNav, NotificationBell, SidebarNav, UserMenu, useThemeClass } from "./shared";
@@ -14,6 +16,7 @@ import { MobileBottomNav, NotificationBell, SidebarNav, UserMenu, useThemeClass 
  */
 export function PersonalShell({ children }: { children: React.ReactNode }) {
   useThemeClass("theme-personal");
+  const { t } = useI18n();
   const user = useCurrentUser();
   return (
     <div className="theme-personal min-h-dvh">
@@ -25,10 +28,10 @@ export function PersonalShell({ children }: { children: React.ReactNode }) {
           <SidebarNav sections={PERSONAL_NAV} />
         </div>
         <div className="m-3 rounded-2xl bg-gradient-to-br from-brand-50 to-white p-4 ring-1 ring-brand-100">
-          <p className="text-sm font-semibold text-slate-900">Need help?</p>
-          <p className="mt-1 text-xs text-slate-500">24/7 support for payments and account issues.</p>
+          <p className="text-sm font-semibold text-slate-900">{t("Need help?")}</p>
+          <p className="mt-1 text-xs text-slate-500">{t("24/7 support for payments and account issues.")}</p>
           <Link href="/help" className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 hover:underline">
-            <Headphones className="h-3.5 w-3.5" aria-hidden /> Help center
+            <Headphones className="h-3.5 w-3.5" aria-hidden /> {t("Help center")}
           </Link>
         </div>
       </aside>
@@ -40,9 +43,10 @@ export function PersonalShell({ children }: { children: React.ReactNode }) {
               <Logo href="/dashboard/personal" />
             </div>
             <p className="hidden text-sm text-slate-500 lg:block">
-              Wallet <span className="tabular font-medium text-slate-700">{user.phone}</span>
+              {t("Wallet")} <span className="tabular font-medium text-slate-700">{user.phone}</span>
             </p>
             <div className="flex items-center gap-1">
+              <LanguageToggle className="mr-1" />
               <NotificationBell />
               <UserMenu />
             </div>
@@ -51,7 +55,7 @@ export function PersonalShell({ children }: { children: React.ReactNode }) {
         <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-12">{children}</main>
       </div>
 
-      <MobileBottomNav items={PERSONAL_MOBILE.items} center={PERSONAL_MOBILE.center} sheetTitle="Payments & services" sheetItems={PERSONAL_MOBILE.sheet} />
+      <MobileBottomNav items={PERSONAL_MOBILE.items} center={PERSONAL_MOBILE.center} sheetTitle={t("Payments & services")} sheetItems={PERSONAL_MOBILE.sheet} />
     </div>
   );
 }

@@ -67,12 +67,29 @@ const TABLES: TableSpec[] = [
   { key: "idempotency", table: "idempotency_keys", pk: "key", map: { keyColumn: "key" } },
 ];
 
+/**
+ * Columns added by later migrations (supabase/migrations). If a database has not
+ * been migrated yet they are skipped on save instead of failing every write.
+ */
+const OPTIONAL_COLUMNS: Record<string, string[]> = {
+  users: ["language"],
+};
+const warnedMissing = new Set<string>();
+
 const snake = (s: string) => s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 const camel = (s: string) => s.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 
 /* ───────────── Connection ───────────── */
 
 type Sql = postgres.Sql;
+
+/**
+ * The transaction pooler doesn't support pipelining either: a query pipelined
+ * behind another can be lost and its connection stays stuck, so the pool dies
+ * under concurrent requests. One query in flight per connection; the rest queue.
+ * (`max_pipeline` is a postgres.js option missing from its type definitions.)
+ */
+const NO_PIPELINING = { max_pipeline: 0 };
 const globalForDb = globalThis as unknown as { __koshSql?: Sql; __koshColumns?: Promise<ColumnTypes> };
 
 function sql(): Sql {
@@ -83,6 +100,7 @@ function sql(): Sql {
   globalForDb.__koshSql = postgres(url, {
     // Supabase's transaction pooler (port 6543) does not support prepared statements.
     prepare: false,
+    ...NO_PIPELINING,
     ssl: local ? false : "require",
     max: Number(process.env.DATABASE_POOL_MAX ?? 5),
     idle_timeout: 20,
@@ -192,7 +210,7 @@ function rowsOf(spec: TableSpec, db: DbState): Map<string, Row> {
 
 /* ───────────── Load ───────────── */
 
-async function loadAll(tx: Sql | postgres.TransactionSql): Promise<DbState> {
+async function loadAll(tx: Sql): Promise<DbState> {
   const types = await columnTypes();
   const select = TABLES.map(
     (t) => `'${t.table}', (select coalesce(json_agg(r), '[]'::json) from "${t.table}" r)`,
@@ -225,7 +243,7 @@ function toParam(v: unknown): string | null {
   return String(v);
 }
 
-async function saveDiff(tx: postgres.TransactionSql, before: DbState, after: DbState) {
+async function saveDiff(tx: Sql, before: DbState, after: DbState) {
   const types = await columnTypes();
   for (const spec of TABLES) {
     const cols = types.get(spec.table)!;
@@ -236,7 +254,13 @@ async function saveDiff(tx: postgres.TransactionSql, before: DbState, after: DbS
     const removed = [...old.keys()].filter((pk) => !next.has(pk));
 
     if (changed.length) {
-      const columns = Object.keys(changed[0]);
+      const optional = (OPTIONAL_COLUMNS[spec.table] ?? []).filter((c) => !cols.has(c));
+      for (const c of optional) {
+        if (warnedMissing.has(`${spec.table}.${c}`)) continue;
+        warnedMissing.add(`${spec.table}.${c}`);
+        console.warn(`[db] Column ${spec.table}.${c} is missing — run supabase/migrations to store it. Skipping for now.`);
+      }
+      const columns = Object.keys(changed[0]).filter((c) => !optional.includes(c));
       const unknown = columns.filter((c) => !cols.has(c));
       if (unknown.length) throw new Error(`Column(s) ${unknown.join(", ")} missing in table ${spec.table}. Re-run supabase/schema.sql.`);
       const perChunk = Math.max(1, Math.floor(20_000 / columns.length));
@@ -278,14 +302,26 @@ export const dbStore: StoreBackend = {
     // Introspect before taking a pooled connection for the transaction —
     // doing it inside would wait for a second connection (deadlock at pool size 1).
     await columnTypes();
-    await sql().begin(async (tx) => {
-      await tx`select pg_advisory_xact_lock(${WRITE_LOCK})`;
-      const current = await loadAll(tx);
-      const draft = structuredClone(current);
-      result = await fn(draft);
-      assertInvariants(draft);
-      await saveDiff(tx, current, draft);
-    });
+    // A reserved connection with explicit BEGIN/COMMIT: sql.begin() needs
+    // pipelining, which is turned off for the transaction pooler (see NO_PIPELINING).
+    const tx = await sql().reserve();
+    try {
+      await tx`begin`;
+      try {
+        await tx`select pg_advisory_xact_lock(${WRITE_LOCK})`;
+        const current = await loadAll(tx);
+        const draft = structuredClone(current);
+        result = await fn(draft);
+        assertInvariants(draft);
+        await saveDiff(tx, current, draft);
+        await tx`commit`;
+      } catch (err) {
+        await tx`rollback`.catch(() => undefined);
+        throw err;
+      }
+    } finally {
+      tx.release();
+    }
     return result;
   },
 

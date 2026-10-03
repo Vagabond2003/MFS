@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
 import { AdminAuditLogs } from "@/features/admin/operations";
+import { titled } from "@/lib/i18n/server";
 
-export const metadata: Metadata = { title: "Audit logs" };
+export const generateMetadata = titled("Audit logs");
 
 export default function Page() {
   return <AdminAuditLogs />;

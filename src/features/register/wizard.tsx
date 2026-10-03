@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
-import { ArrowLeft, ArrowRight, CircleCheck, MessageSquareText } from "lucide-react";
+import { ArrowLeft, ArrowRight, CircleCheck, Languages, MessageSquareText } from "lucide-react";
 import { toast } from "sonner";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,6 +13,8 @@ import { Alert } from "@/components/ui/feedback";
 import { ResendButton } from "@/components/flows/transaction-flow";
 import { api } from "@/services";
 import { useHydrated } from "@/hooks/use-hydrated";
+import { useI18n } from "@/hooks/use-i18n";
+import { LANGS, LANG_NAME, type Lang } from "@/lib/i18n/core";
 import { toApiError, type ApiError } from "@/services/errors";
 import { cn, maskPhone } from "@/lib/utils";
 import type { OtpChallenge } from "@/types/domain";
@@ -98,11 +100,12 @@ export function WizardFrame({
   submitLabel: string;
   tone: "personal" | "agent" | "merchant";
 }) {
+  const { t } = useI18n();
   const hydrated = useHydrated();
   return (
     <div className={cn(`theme-${tone}`, "mx-auto max-w-3xl")}>
       <Link href="/register" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-900">
-        <ArrowLeft className="h-4 w-4" aria-hidden /> Change account type
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t("Change account type")}
       </Link>
       <Card className="overflow-hidden">
         <div className="border-b border-slate-100 bg-gradient-to-br from-accent-50 to-white px-5 py-6 sm:px-8">
@@ -117,7 +120,7 @@ export function WizardFrame({
             <Stepper steps={steps} current={step} />
           </div>
           <p className="mt-3 text-xs font-medium text-slate-500 md:hidden">
-            Step {step + 1} of {steps.length}: <span className="text-slate-700">{steps[step]}</span>
+            {t("Step {n} of {total}:", { n: step + 1, total: steps.length })} <span className="text-slate-700">{steps[step]}</span>
           </p>
         </div>
         <form
@@ -135,18 +138,18 @@ export function WizardFrame({
           </div>
           <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-4 sm:px-8">
             <Button variant="ghost" onClick={onBack} disabled={step === 0 || submitting}>
-              <ArrowLeft className="h-4 w-4" aria-hidden /> Back
+              <ArrowLeft className="h-4 w-4" aria-hidden /> {t("Back")}
             </Button>
             <Button type="submit" size="lg" loading={submitting} disabled={!hydrated}>
-              {isLast ? submitLabel : "Continue"} {!isLast && <ArrowRight className="h-4 w-4" aria-hidden />}
+              {isLast ? submitLabel : t("Continue")} {!isLast && <ArrowRight className="h-4 w-4" aria-hidden />}
             </Button>
           </div>
         </form>
       </Card>
       <p className="mt-6 text-center text-sm text-slate-500">
-        Already have an account?{" "}
+        {t("Already have an account?")}{" "}
         <Link href="/login" className="font-semibold text-brand-700 hover:underline">
-          Sign in
+          {t("Sign in")}
         </Link>
       </p>
     </div>
@@ -169,13 +172,14 @@ export function PhoneVerification({
   onCode: (v: string) => void;
   error?: string;
 }) {
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const send = async () => {
     setBusy(true);
     try {
       onChallenge(await api.registration.sendPhoneOtp(phone));
       onCode("");
-      toast.success("Verification code sent");
+      toast.success(t("Verification code sent"));
     } catch (e) {
       toast.error(toApiError(e).message);
     } finally {
@@ -189,25 +193,25 @@ export function PhoneVerification({
           <MessageSquareText className="h-[18px] w-[18px]" aria-hidden />
         </span>
         <div className="text-sm">
-          <p className="font-semibold text-slate-900">Verify your mobile number</p>
+          <p className="font-semibold text-slate-900">{t("Verify your mobile number")}</p>
           <p className="text-slate-500">
-            We&apos;ll send a 6-digit code to <span className="tabular font-medium text-slate-700">{maskPhone(phone)}</span>.
+            {t("We'll send a 6-digit code to")} <span className="tabular font-medium text-slate-700">{maskPhone(phone)}</span>.
           </p>
         </div>
       </div>
       {challenge ? (
         <>
-          <CodeInput length={6} value={code} onChange={onCode} label="Verification code" invalid={!!error} autoFocus />
+          <CodeInput length={6} value={code} onChange={onCode} label={t("Verification code")} invalid={!!error} autoFocus />
           <DevCodeHint code={challenge.devCode} />
-          {error && <p className="text-[13px] font-medium text-rose-600">{error}</p>}
+          {error && <p className="text-[13px] font-medium text-rose-600">{t(error)}</p>}
           <ResendButton challenge={challenge} onResend={send} disabled={busy} />
         </>
       ) : (
         <>
           <Button variant="soft" onClick={send} loading={busy}>
-            Send verification code
+            {t("Send verification code")}
           </Button>
-          {error && <p className="text-[13px] font-medium text-rose-600">{error}</p>}
+          {error && <p className="text-[13px] font-medium text-rose-600">{t(error)}</p>}
         </>
       )}
     </div>
@@ -225,6 +229,7 @@ export function RegistrationSuccess({
   details: { label: string; value: React.ReactNode }[];
   note?: React.ReactNode;
 }) {
+  const { t } = useI18n();
   return (
     <Card className="mx-auto max-w-lg p-8 text-center">
       <span className="mx-auto grid h-16 w-16 animate-pop place-items-center rounded-full bg-emerald-100 text-emerald-600">
@@ -242,7 +247,7 @@ export function RegistrationSuccess({
       </dl>
       {note && <Alert className="mt-4 text-left">{note}</Alert>}
       <ButtonLink href="/login" variant="brand" size="lg" fullWidth className="mt-6">
-        Continue to sign in
+        {t("Continue to sign in")}
       </ButtonLink>
     </Card>
   );
@@ -254,6 +259,51 @@ export function StepIntro({ title, children }: { title: string; children?: React
       <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
       {children && <p className="mt-1 text-sm text-slate-500">{children}</p>}
     </div>
+  );
+}
+
+/**
+ * The new account's interface language. Defaults to the language the visitor
+ * is browsing in; switching it previews the form in that language.
+ */
+export function LanguagePreference({ value, onChange }: { value: Lang; onChange: (lang: Lang) => void }) {
+  const { t, setLang } = useI18n();
+  return (
+    <fieldset className="space-y-2">
+      <legend className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+        <Languages className="h-4 w-4 text-slate-400" aria-hidden /> {t("Preferred language")}
+      </legend>
+      <div className="grid grid-cols-2 gap-3">
+        {LANGS.map((l) => {
+          const active = l === value;
+          return (
+            <label
+              key={l}
+              className={cn(
+                "flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition",
+                active ? "border-accent-500 bg-accent-50 ring-2 ring-accent-500/20" : "border-slate-200 bg-white hover:border-slate-300",
+              )}
+            >
+              <input
+                type="radio"
+                name="language"
+                value={l}
+                checked={active}
+                onChange={() => {
+                  onChange(l);
+                  void setLang(l);
+                }}
+                className="h-4 w-4 accent-[var(--accent-600)]"
+              />
+              <span lang={l} className="text-sm font-semibold text-slate-900">
+                {LANG_NAME[l]}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      <p className="text-[13px] text-slate-500">{t("Kosh will appear in this language. You can change it anytime from your profile.")}</p>
+    </fieldset>
   );
 }
 
