@@ -24,7 +24,7 @@ export function Logo({
   className?: string;
 }) {
   return (
-    <Link href={href} className={cn("flex items-center gap-2.5", className)} aria-label="Kosh home">
+    <Link href={href} className={cn("flex items-center gap-2.5", className)} aria-label="Kosh">
       <LogoMark />
       <span className={cn("text-xl font-extrabold tracking-tight", tone === "light" ? "text-white" : "text-slate-900")}>Kosh</span>
       {suffix}

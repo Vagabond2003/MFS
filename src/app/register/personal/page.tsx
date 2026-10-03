@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
 import { PersonalRegistration } from "@/features/register/personal-form";
+import { titled } from "@/lib/i18n/server";
 
-export const metadata: Metadata = { title: "Personal account" };
+export const generateMetadata = titled("Personal account");
 
 export default function Page() {
   return <PersonalRegistration />;

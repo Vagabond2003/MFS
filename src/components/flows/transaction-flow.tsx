@@ -16,6 +16,7 @@ import { invalidateLedger } from "@/hooks/use-api";
 import { ApiError, api } from "@/services";
 import { toApiError } from "@/services/errors";
 import { cn, formatDateTime, formatMoney, newIdempotencyKey } from "@/lib/utils";
+import { useI18n } from "@/hooks/use-i18n";
 import type { OperationQuote, OperationRequest, OperationResult, OtpChallenge } from "@/types/domain";
 
 type Step = "form" | "review" | "done";
@@ -36,8 +37,8 @@ export interface FlowFormContext {
  */
 export function TransactionFlow({
   renderForm,
-  confirmLabel = "Confirm",
-  pinLabel = "Enter your 5-digit PIN",
+  confirmLabel,
+  pinLabel,
   doneHref,
   onDone,
   aside,
@@ -53,6 +54,7 @@ export function TransactionFlow({
   /** When set, the flow is disabled and this message is shown instead. */
   locked?: React.ReactNode;
 }) {
+  const { t } = useI18n();
   const router = useRouter();
   const [step, setStep] = useState<Step>("form");
   const [busy, setBusy] = useState(false);
@@ -94,7 +96,7 @@ export function TransactionFlow({
     try {
       setChallenge(await api.operations.requestOtp(request));
       setOtp("");
-      toast.success(quote?.otpTarget === "CUSTOMER" ? "Code sent to the customer" : `Code sent to ${quote?.otpDestination ?? "your phone"}`);
+      toast.success(quote?.otpTarget === "CUSTOMER" ? t("Code sent to the customer") : t("Code sent to {destination}", { destination: quote?.otpDestination ?? t("your phone") }));
     } catch (e) {
       toast.error(toApiError(e).message);
     } finally {
@@ -116,7 +118,8 @@ export function TransactionFlow({
       setStep("done");
       invalidateLedger();
       if (res.transaction.status === "SUCCESSFUL" || res.transaction.status === "PENDING") {
-        toast.success(`${TXN_META[res.transaction.type].label} ${res.transaction.status === "PENDING" ? "submitted" : "successful"}`);
+        const type = t(TXN_META[res.transaction.type].label);
+        toast.success(res.transaction.status === "PENDING" ? t("{type} submitted", { type }) : t("{type} successful", { type }));
       }
     } catch (e) {
       const err = toApiError(e);
@@ -139,13 +142,13 @@ export function TransactionFlow({
 
   const stepIndex = step === "form" ? 0 : step === "review" ? 1 : 2;
   const otpReady = !quote?.requiresOtp || (challenge && otp.length === 6);
-  const label = quote ? (typeof confirmLabel === "function" ? confirmLabel(quote) : confirmLabel) : "";
+  const label = quote ? (typeof confirmLabel === "function" ? confirmLabel(quote) : confirmLabel ?? t("Confirm")) : "";
 
   return (
     <div className={cn("grid gap-6", aside && "lg:grid-cols-[minmax(0,1fr)_340px]")}>
       <Card className="overflow-hidden">
         <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
-          <Stepper steps={["Details", "Review & authorise", "Receipt"]} current={stepIndex} />
+          <Stepper steps={[t("Details"), t("Review & authorise"), t("Receipt")]} current={stepIndex} />
         </div>
 
         {locked ? (
@@ -176,22 +179,22 @@ export function TransactionFlow({
                 <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4">
                   <Avatar name={quote.counterparty.name} className="h-12 w-12 ring-0" />
                   <div className="min-w-0">
-                    <p className="truncate font-semibold text-slate-900">{quote.counterparty.name}</p>
+                    <p className="truncate font-semibold text-slate-900">{t(quote.counterparty.name)}</p>
                     <p className="tabular text-sm text-slate-500">{quote.counterparty.account}</p>
                   </div>
                 </div>
 
-                <DescriptionList items={quote.summary.map((r) => ({ label: r.label, value: r.emphasis ? <span className="text-base font-bold">{r.value}</span> : r.value }))} />
+                <DescriptionList items={quote.summary.map((r) => ({ label: t(r.label), value: r.emphasis ? <span className="text-base font-bold">{t(r.value)}</span> : t(r.value) }))} />
 
                 {quote.kind !== "AGENT_CASH_OUT" && (
                   <p className="text-xs text-slate-500">
-                    Balance after this transaction: <span className="tabular font-semibold text-slate-700">{formatMoney(quote.balanceAfter)}</span>
+                    {t("Balance after this transaction:")} <span className="tabular font-semibold text-slate-700">{formatMoney(quote.balanceAfter)}</span>
                   </p>
                 )}
 
                 {quote.warnings.map((w) => (
                   <Alert key={w} tone="info">
-                    {w}
+                    {t(w)}
                   </Alert>
                 ))}
 
@@ -202,19 +205,19 @@ export function TransactionFlow({
                         <MessageSquareText className="h-[18px] w-[18px]" aria-hidden />
                       </span>
                       <div className="text-sm">
-                        <p className="font-semibold text-slate-900">{quote.otpTarget === "CUSTOMER" ? "Customer approval" : "One-time code required"}</p>
-                        <p className="text-slate-500">{quote.otpReason}</p>
+                        <p className="font-semibold text-slate-900">{quote.otpTarget === "CUSTOMER" ? t("Customer approval") : t("One-time code required")}</p>
+                        <p className="text-slate-500">{quote.otpReason ? t(quote.otpReason) : null}</p>
                       </div>
                     </div>
                     {challenge ? (
                       <>
-                        <CodeInput length={6} value={otp} onChange={setOtp} label="One-time code" invalid={error?.code === "INVALID_OTP"} />
+                        <CodeInput length={6} value={otp} onChange={setOtp} label={t("One-time code")} invalid={error?.code === "INVALID_OTP"} />
                         <DevCodeHint code={challenge.devCode} />
                         <ResendButton challenge={challenge} onResend={sendOtp} disabled={busy} />
                       </>
                     ) : (
                       <Button variant="soft" onClick={sendOtp} loading={busy}>
-                        Send code to {quote.otpTarget === "CUSTOMER" ? "customer" : quote.otpDestination ?? "my phone"}
+                        {quote.otpTarget === "CUSTOMER" ? t("Send code to customer") : t("Send code to {destination}", { destination: quote.otpDestination ?? t("my phone") })}
                       </Button>
                     )}
                   </div>
@@ -222,9 +225,9 @@ export function TransactionFlow({
 
                 <div className="space-y-3">
                   <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                    <KeyRound className="h-4 w-4 text-slate-400" aria-hidden /> {pinLabel}
+                    <KeyRound className="h-4 w-4 text-slate-400" aria-hidden /> {pinLabel ?? t("Enter your 5-digit PIN")}
                   </p>
-                  <CodeInput length={5} value={pin} onChange={setPin} secret autoFocus={!quote.requiresOtp} label="PIN" invalid={error?.code === "INVALID_PIN"} />
+                  <CodeInput length={5} value={pin} onChange={setPin} secret autoFocus={!quote.requiresOtp} label={t("PIN")} invalid={error?.code === "INVALID_PIN"} />
                 </div>
 
                 {error && (
@@ -233,7 +236,7 @@ export function TransactionFlow({
 
                 <div className="flex flex-col-reverse gap-2 sm:flex-row">
                   <Button variant="outline" onClick={() => { setStep("form"); setError(null); }} disabled={busy}>
-                    <ArrowLeft className="h-4 w-4" aria-hidden /> Back
+                    <ArrowLeft className="h-4 w-4" aria-hidden /> {t("Back")}
                   </Button>
                   <Button className="flex-1" size="lg" onClick={confirm} loading={busy} disabled={pin.length !== 5 || !otpReady}>
                     {label}
@@ -247,13 +250,13 @@ export function TransactionFlow({
                 <Receipt result={result} />
                 <div className="mt-6 flex flex-col gap-2 sm:flex-row">
                   <Button variant="outline" className="sm:flex-1" onClick={() => setShowReceipt(true)}>
-                    View receipt
+                    {t("View receipt")}
                   </Button>
                   <Button variant="outline" className="sm:flex-1" onClick={restart}>
-                    New transaction
+                    {t("New transaction")}
                   </Button>
                   <Button className="sm:flex-1" onClick={() => (onDone ? onDone() : router.push(doneHref))}>
-                    Done
+                    {t("Done")}
                   </Button>
                 </div>
                 <TransactionDetail transaction={result.transaction} open={showReceipt} onClose={() => setShowReceipt(false)} />
@@ -268,9 +271,11 @@ export function TransactionFlow({
 }
 
 function Receipt({ result }: { result: OperationResult }) {
-  const t = result.transaction;
-  const failed = t.status === "FAILED";
-  const pending = t.status === "PENDING";
+  const { t, lang } = useI18n();
+  const txn = result.transaction;
+  const failed = txn.status === "FAILED";
+  const pending = txn.status === "PENDING";
+  const type = t(TXN_META[txn.type].label);
   return (
     <div className="flex flex-col items-center text-center">
       <span
@@ -282,36 +287,36 @@ function Receipt({ result }: { result: OperationResult }) {
         {failed ? <CircleX className="h-9 w-9" aria-hidden /> : pending ? <Clock3 className="h-9 w-9" aria-hidden /> : <CircleCheck className="h-9 w-9" aria-hidden />}
       </span>
       <h2 className="mt-4 text-lg font-bold text-slate-900">
-        {TXN_META[t.type].label} {failed ? "failed" : pending ? "submitted" : "successful"}
+        {failed ? t("{type} failed", { type }) : pending ? t("{type} submitted", { type }) : t("{type} successful", { type })}
       </h2>
       <p className="mt-1 text-sm text-slate-500">
-        {failed ? "No money was deducted from your account." : pending ? "It's being processed — you'll get a notification when it completes." : formatDateTime(t.createdAt)}
+        {failed ? t("No money was deducted from your account.") : pending ? t("It's being processed — you'll get a notification when it completes.") : formatDateTime(txn.createdAt, lang)}
       </p>
-      <p className="mt-4 text-4xl font-bold tracking-tight text-slate-900">{formatMoney(t.amount)}</p>
+      <p className="mt-4 text-4xl font-bold tracking-tight text-slate-900">{formatMoney(txn.amount)}</p>
       <p className="mt-1 text-sm text-slate-500">
-        {t.direction === "OUT" ? "to" : "from"} <span className="font-medium text-slate-700">{t.counterparty.name}</span> · <span className="tabular">{t.counterparty.account}</span>
+        {txn.direction === "OUT" ? t("to") : t("from")} <span className="font-medium text-slate-700">{t(txn.counterparty.name)}</span> · <span className="tabular">{txn.counterparty.account}</span>
       </p>
       <div className="mt-6 w-full max-w-sm rounded-2xl bg-slate-50 px-4">
         <DescriptionList
           items={[
             {
-              label: "Transaction ID",
+              label: t("Transaction ID"),
               value: (
                 <button
                   type="button"
                   className="tabular inline-flex items-center gap-1.5 font-mono hover:text-accent-700"
                   onClick={() => {
-                    void navigator.clipboard?.writeText(t.trxId);
-                    toast.success("Transaction ID copied");
+                    void navigator.clipboard?.writeText(txn.trxId);
+                    toast.success(t("Transaction ID copied"));
                   }}
                 >
-                  {t.trxId} <Copy className="h-3.5 w-3.5" aria-hidden />
+                  {txn.trxId} <Copy className="h-3.5 w-3.5" aria-hidden />
                 </button>
               ),
             },
-            { label: "Fee", value: t.fee ? formatMoney(t.fee) : "Free" },
-            ...(t.commission ? [{ label: "Commission earned", value: formatMoney(t.commission) }] : []),
-            { label: "Available balance", value: formatMoney(result.balanceAfter) },
+            { label: t("Fee"), value: txn.fee ? formatMoney(txn.fee) : t("Free") },
+            ...(txn.commission ? [{ label: t("Commission earned"), value: formatMoney(txn.commission) }] : []),
+            { label: t("Available balance"), value: formatMoney(result.balanceAfter) },
           ]}
         />
       </div>
@@ -320,6 +325,7 @@ function Receipt({ result }: { result: OperationResult }) {
 }
 
 function ResendButton({ challenge, onResend, disabled }: { challenge: OtpChallenge; onResend: () => void; disabled?: boolean }) {
+  const { t } = useI18n();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -328,12 +334,12 @@ function ResendButton({ challenge, onResend, disabled }: { challenge: OtpChallen
   const wait = Math.max(0, Math.ceil((Date.parse(challenge.resendAvailableAt) - now) / 1000));
   return (
     <p className="text-xs text-slate-500">
-      Sent to <span className="tabular font-medium text-slate-700">{challenge.destinationMasked}</span>.{" "}
+      {t("Sent to")} <span className="tabular font-medium text-slate-700">{challenge.destinationMasked}</span>.{" "}
       {wait > 0 ? (
-        <span>Resend in {wait}s</span>
+        <span>{t("Resend in {n}s", { n: wait })}</span>
       ) : (
         <button type="button" className="font-semibold text-accent-700 hover:underline disabled:opacity-50" onClick={onResend} disabled={disabled}>
-          Resend code
+          {t("Resend code")}
         </button>
       )}
     </p>

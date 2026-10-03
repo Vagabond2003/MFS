@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { api, errorMessage } from "@/services";
 import type { UploadPurpose } from "@/services/contracts";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/hooks/use-i18n";
 import { validateUploadFile } from "@/lib/validation";
 import type { UploadedFileRef } from "@/types/domain";
 
@@ -15,7 +16,7 @@ import type { UploadedFileRef } from "@/types/domain";
  */
 export function FileDrop({
   label,
-  hint = "JPG, PNG or PDF · up to 5 MB",
+  hint,
   purpose,
   value,
   onChange,
@@ -30,6 +31,7 @@ export function FileDrop({
   error?: string;
   required?: boolean;
 }) {
+  const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -72,14 +74,14 @@ export function FileDrop({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-slate-800">{value.fileName}</p>
             <p className="flex items-center gap-1 text-xs text-emerald-700">
-              <CircleCheck className="h-3.5 w-3.5" aria-hidden /> Uploaded · {(value.sizeBytes / 1024).toFixed(0)} KB
+              <CircleCheck className="h-3.5 w-3.5" aria-hidden /> {t("Uploaded · {size} KB", { size: (value.sizeBytes / 1024).toFixed(0) })}
             </p>
           </div>
           <button
             type="button"
             onClick={() => onChange(null)}
             className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-white hover:text-slate-700"
-            aria-label={`Remove ${label}`}
+            aria-label={t("Remove {label}", { label })}
           >
             <X className="h-4 w-4" />
           </button>
@@ -109,8 +111,8 @@ export function FileDrop({
             {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
           </span>
           <span className="min-w-0">
-            <span className="block text-sm font-medium text-slate-700">{busy ? "Uploading and checking…" : "Click to upload or drag a file here"}</span>
-            <span className="block text-xs text-slate-500">{hint}</span>
+            <span className="block text-sm font-medium text-slate-700">{busy ? t("Uploading and checking…") : t("Click to upload or drag a file here")}</span>
+            <span className="block text-xs text-slate-500">{hint ?? t("JPG, PNG or PDF · up to 5 MB")}</span>
           </span>
         </button>
       )}
@@ -124,7 +126,7 @@ export function FileDrop({
       />
       {shownError && (
         <p className="text-[13px] font-medium text-rose-600" role="alert">
-          {shownError}
+          {t(shownError)}
         </p>
       )}
     </div>

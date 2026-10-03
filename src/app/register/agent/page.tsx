@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
 import { AgentRegistration } from "@/features/register/agent-form";
+import { titled } from "@/lib/i18n/server";
 
-export const metadata: Metadata = { title: "Agent application" };
+export const generateMetadata = titled("Agent application");
 
 export default function Page() {
   return <AgentRegistration />;

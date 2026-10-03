@@ -17,6 +17,7 @@ import { TransactionHistory } from "@/components/transactions/transaction-histor
 import { TransactionTable } from "@/components/transactions/transaction-table";
 import { useApi } from "@/hooks/use-api";
 import { useCurrentUser } from "@/hooks/use-auth";
+import { useI18n } from "@/hooks/use-i18n";
 import { api } from "@/services";
 import { formatCount, formatMoney, toMinor } from "@/lib/utils";
 import { takaAmountSchema } from "@/lib/validation";
@@ -27,6 +28,7 @@ import { DocumentList, StatusTimeline, VerificationProgress } from "../shared/ve
 /* ───────────── Sales analytics ───────────── */
 
 export function SalesAnalyticsView() {
+  const { t } = useI18n();
   const dash = useApi(() => api.merchant.dashboard(), [], { tags: ["dashboard", "transactions"] });
   const d = dash.data;
   if (dash.error && !d) return <ErrorState message={dash.error.message} onRetry={dash.reload} />;
@@ -35,12 +37,12 @@ export function SalesAnalyticsView() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Analytics" title="Sales" description="How your business is performing across days, weeks and months." />
+      <PageHeader eyebrow={t("Analytics")} title={t("Sales")} description={t("How your business is performing across days, weeks and months.")} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Monthly revenue" value={d ? formatMoney(d.month.revenue) : "—"} icon={<TrendingUp className="h-4 w-4" />} />
-        <StatTile label="Net revenue" value={d ? formatMoney(d.month.net) : "—"} icon={<ShoppingBag className="h-4 w-4" />} hint="After fees & refunds" />
-        <StatTile label="Average ticket" value={d ? formatMoney(avgTicket) : "—"} icon={<Hash className="h-4 w-4" />} />
-        <StatTile label="Refund rate" value={d ? `${refundRate.toFixed(1)}%` : "—"} icon={<Percent className="h-4 w-4" />} hint="Of this month's revenue" />
+        <StatTile label={t("Monthly revenue")} value={d ? formatMoney(d.month.revenue) : "—"} icon={<TrendingUp className="h-4 w-4" />} />
+        <StatTile label={t("Net revenue")} value={d ? formatMoney(d.month.net) : "—"} icon={<ShoppingBag className="h-4 w-4" />} hint={t("After fees & refunds")} />
+        <StatTile label={t("Average ticket")} value={d ? formatMoney(avgTicket) : "—"} icon={<Hash className="h-4 w-4" />} />
+        <StatTile label={t("Refund rate")} value={d ? `${refundRate.toFixed(1)}%` : "—"} icon={<Percent className="h-4 w-4" />} hint={t("Of this month's revenue")} />
       </div>
       {!d ? (
         <div className="grid gap-6 lg:grid-cols-2">
@@ -50,33 +52,33 @@ export function SalesAnalyticsView() {
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
-          <ChartCard title="Daily sales" description="Last 14 days" xKey="date" data={d.daily} series={[{ key: "sales", label: "Sales" }]}>
-            <ColumnChart data={d.daily} xKey="date" series={[{ key: "sales", label: "Sales" }]} />
+          <ChartCard title={t("Daily sales")} description={t("Last 14 days")} xKey="date" data={d.daily} series={[{ key: "sales", label: t("Sales") }]}>
+            <ColumnChart data={d.daily} xKey="date" series={[{ key: "sales", label: t("Sales") }]} />
           </ChartCard>
-          <ChartCard title="Weekly sales" description="Last 8 weeks (week starting Saturday)" xKey="week" data={d.weekly} series={[{ key: "sales", label: "Sales" }]}>
-            <ColumnChart data={d.weekly} xKey="week" series={[{ key: "sales", label: "Sales" }]} />
+          <ChartCard title={t("Weekly sales")} description={t("Last 8 weeks (week starting Saturday)")} xKey="week" data={d.weekly} series={[{ key: "sales", label: t("Sales") }]}>
+            <ColumnChart data={d.weekly} xKey="week" series={[{ key: "sales", label: t("Sales") }]} />
           </ChartCard>
-          <ChartCard title="Monthly revenue" description="Last 6 months" xKey="month" data={d.monthly} series={[{ key: "revenue", label: "Revenue" }]}>
-            <TrendChart data={d.monthly} xKey="month" series={[{ key: "revenue", label: "Revenue" }]} />
+          <ChartCard title={t("Monthly revenue")} description={t("Last 6 months")} xKey="month" data={d.monthly} series={[{ key: "revenue", label: t("Revenue") }]}>
+            <TrendChart data={d.monthly} xKey="month" series={[{ key: "revenue", label: t("Revenue") }]} />
           </ChartCard>
-          <ChartCard title="Refunds" description="Refunded per month" xKey="month" data={d.monthly} series={[{ key: "refunds", label: "Refunds" }]}>
-            <ColumnChart data={d.monthly} xKey="month" series={[{ key: "refunds", label: "Refunds" }]} />
+          <ChartCard title={t("Refunds")} description={t("Refunded per month")} xKey="month" data={d.monthly} series={[{ key: "refunds", label: t("Refunds") }]}>
+            <ColumnChart data={d.monthly} xKey="month" series={[{ key: "refunds", label: t("Refunds") }]} />
           </ChartCard>
-          <ChartCard title="Transaction volume" description="Payment attempts per day · last 14 days" xKey="date" data={d.daily} format="count" series={[{ key: "count", label: "Payments" }]}>
-            <TrendChart data={d.daily} xKey="date" format="count" series={[{ key: "count", label: "Payments" }]} />
+          <ChartCard title={t("Transaction volume")} description={t("Payment attempts per day · last 14 days")} xKey="date" data={d.daily} format="count" series={[{ key: "count", label: t("Payments") }]}>
+            <TrendChart data={d.daily} xKey="date" format="count" series={[{ key: "count", label: t("Payments") }]} />
           </ChartCard>
-          <DonutCard title="Payment methods" description="Share of revenue · last 30 days" centerLabel="received" data={d.paymentMethods.map((m) => ({ label: PAYMENT_METHOD_LABEL[m.method], value: m.amount }))} />
+          <DonutCard title={t("Payment methods")} description={t("Share of revenue · last 30 days")} centerLabel={t("received")} data={d.paymentMethods.map((m) => ({ label: PAYMENT_METHOD_LABEL[m.method], value: m.amount }))} />
         </div>
       )}
       {d && (
         <Card>
-          <CardHeader title="Payment methods" description="Last 30 days" />
+          <CardHeader title={t("Payment methods")} description={t("Last 30 days")} />
           <div className="mt-2 divide-y divide-slate-100">
             {d.paymentMethods.map((m) => (
               <div key={m.method} className="flex items-center justify-between px-5 py-3 text-sm sm:px-6">
-                <span className="font-medium text-slate-700">{PAYMENT_METHOD_LABEL[m.method]}</span>
+                <span className="font-medium text-slate-700">{t(PAYMENT_METHOD_LABEL[m.method])}</span>
                 <span className="text-slate-500">
-                  <span className="tabular font-semibold text-slate-900">{formatMoney(m.amount)}</span> · {formatCount(m.count)} payments
+                  <span className="tabular font-semibold text-slate-900">{formatMoney(m.amount)}</span> · {t("{n} payments", { n: formatCount(m.count) })}
                 </span>
               </div>
             ))}
@@ -90,6 +92,7 @@ export function SalesAnalyticsView() {
 /* ───────────── Refunds ───────────── */
 
 function RefundForm({ submit, busy, payment }: FlowFormContext & { payment: TransactionView }) {
+  const { t } = useI18n();
   const refundable = payment.amount - payment.refundedAmount;
   const [amount, setAmount] = useState(String(refundable / 100));
   const [reason, setReason] = useState("");
@@ -102,7 +105,7 @@ function RefundForm({ submit, busy, payment }: FlowFormContext & { payment: Tran
         e.preventDefault();
         const a = takaAmountSchema(1, refundable / 100).safeParse(amount);
         if (!a.success) return setError(a.error.issues[0].message);
-        if (reason.trim().length < 3) return setError("Enter a reason for the refund");
+        if (reason.trim().length < 3) return setError(t("Enter a reason for the refund"));
         setError(null);
         void submit({ kind: "MERCHANT_REFUND", trxId: payment.trxId, amount: toMinor(a.data), reason });
       }}
@@ -110,28 +113,29 @@ function RefundForm({ submit, busy, payment }: FlowFormContext & { payment: Tran
       <div className="rounded-2xl bg-slate-50 px-4">
         <DescriptionList
           items={[
-            { label: "Original payment", value: <span className="tabular font-mono">{payment.trxId}</span> },
-            { label: "Customer", value: `${payment.counterparty.name} · ${payment.counterparty.account}` },
-            { label: "Paid", value: formatMoney(payment.amount) },
-            { label: "Refundable", value: formatMoney(refundable) },
+            { label: t("Original payment"), value: <span className="tabular font-mono">{payment.trxId}</span> },
+            { label: t("Customer"), value: `${payment.counterparty.name} · ${payment.counterparty.account}` },
+            { label: t("Paid"), value: formatMoney(payment.amount) },
+            { label: t("Refundable"), value: formatMoney(refundable) },
           ]}
         />
       </div>
-      <Field label="Refund amount" required hint="Full or partial">
+      <Field label={t("Refund amount")} required hint={t("Full or partial")}>
         {(p) => <AmountInput {...p} value={amount} onChange={(e) => setAmount(e.target.value)} />}
       </Field>
-      <Field label="Reason" required>
-        {(p) => <Textarea {...p} rows={2} value={reason} maxLength={80} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Item out of stock" />}
+      <Field label={t("Reason")} required>
+        {(p) => <Textarea {...p} rows={2} value={reason} maxLength={80} onChange={(e) => setReason(e.target.value)} placeholder={t("e.g. Item out of stock")} />}
       </Field>
-      {error && <Alert tone="danger">{error}</Alert>}
+      {error && <Alert tone="danger">{t(error)}</Alert>}
       <Button type="submit" size="lg" fullWidth loading={busy}>
-        Continue
+        {t("Continue")}
       </Button>
     </form>
   );
 }
 
 function RefundsInner() {
+  const { t } = useI18n();
   const user = useCurrentUser();
   const params = useSearchParams();
   const [search, setSearch] = useState("");
@@ -142,43 +146,43 @@ function RefundsInner() {
   const trxParam = params.get("trx");
   useEffect(() => {
     if (!trxParam) return;
-    api.transactions.get(trxParam).then((t) => t.canRefund && setPayment(t)).catch(() => undefined);
+    api.transactions.get(trxParam).then((found) => found.canRefund && setPayment(found)).catch(() => undefined);
   }, [trxParam]);
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Payments" title="Refunds" description="Return all or part of a payment to the customer's wallet. Refunds are possible for 30 days." />
+      <PageHeader eyebrow={t("Payments")} title={t("Refunds")} description={t("Return all or part of a payment to the customer's wallet. Refunds are possible for 30 days.")} />
       {user.status !== "VERIFIED" ? (
-        <Alert tone="warning">Refunds are available once your business is verified.</Alert>
+        <Alert tone="warning">{t("Refunds are available once your business is verified.")}</Alert>
       ) : (
         <Card>
-          <CardHeader title="Refundable payments" description="Successful payments from the last 30 days" />
+          <CardHeader title={t("Refundable payments")} description={t("Successful payments from the last 30 days")} />
           <div className="mt-4 px-5 sm:px-6">
-            <Input aria-label="Search payments" placeholder="Search by transaction ID or customer" leading={<Search className="h-4 w-4" />} value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+            <Input aria-label={t("Search payments")} placeholder={t("Search by transaction ID or customer")} leading={<Search className="h-4 w-4" />} value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
           </div>
           <div className="mt-4">
             <TransactionTable
-              items={list.data?.items.filter((t) => t.canRefund)}
+              items={list.data?.items.filter((item) => item.canRefund)}
               variant="merchant"
               loading={list.loading}
               onSelect={setPayment}
-              emptyState={<EmptyState icon={<Receipt className="h-6 w-6" />} title="No refundable payments" />}
+              emptyState={<EmptyState icon={<Receipt className="h-6 w-6" />} title={t("No refundable payments")} />}
             />
             {list.data && <Pagination page={list.data.page} totalPages={list.data.totalPages} total={list.data.total} pageSize={list.data.pageSize} onChange={setPage} />}
           </div>
         </Card>
       )}
       <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">Refund history</h2>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">{t("Refund history")}</h2>
         <TransactionHistory role="MERCHANT" variant="merchant" fixedType="REFUND" pageSize={6} />
       </div>
-      <Modal open={!!payment} onClose={() => setPayment(null)} title="Issue refund" description="The customer is credited instantly. Authorise with your PIN." size="lg">
+      <Modal open={!!payment} onClose={() => setPayment(null)} title={t("Issue refund")} description={t("The customer is credited instantly. Authorise with your PIN.")} size="lg">
         {payment && (
           <TransactionFlow
             doneHref="/dashboard/merchant/refunds"
             onDone={() => setPayment(null)}
-            pinLabel="Enter your PIN to authorise the refund"
-            confirmLabel={(q) => `Refund ${formatMoney(q.amount)}`}
+            pinLabel={t("Enter your PIN to authorise the refund")}
+            confirmLabel={(q) => t("Refund {amount}", { amount: formatMoney(q.amount) })}
             renderForm={(ctx) => <RefundForm {...ctx} payment={payment} />}
           />
         )}
@@ -198,6 +202,7 @@ export function RefundsView() {
 /* ───────────── Business profile ───────────── */
 
 export function BusinessProfileView() {
+  const { t } = useI18n();
   const profile = useApi(() => api.profile.get(), [], { tags: ["profile"] });
   const p = profile.data;
   if (profile.error && !p) return <ErrorState message={profile.error.message} onRetry={profile.reload} />;
@@ -206,7 +211,7 @@ export function BusinessProfileView() {
   const Cat = CATEGORY_META[m.category].icon;
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Business" title="Business profile" description="Your verified business identity, documents and settlement account." />
+      <PageHeader eyebrow={t("Business")} title={t("Business profile")} description={t("Your verified business identity, documents and settlement account.")} />
       <Card className="overflow-hidden">
         <div className="flex flex-col gap-4 bg-gradient-to-r from-accent-600 to-accent-500 p-6 text-accent-fg sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
@@ -216,7 +221,7 @@ export function BusinessProfileView() {
             <div>
               <p className="text-xl font-bold">{m.businessName}</p>
               <p className="text-sm opacity-90">
-                {CATEGORY_META[m.category].label} · Merchant ID <span className="tabular font-mono">{m.merchantId}</span>
+                {t(CATEGORY_META[m.category].label)} · {t("Merchant ID")} <span className="tabular font-mono">{m.merchantId}</span>
               </p>
             </div>
           </div>
@@ -227,39 +232,39 @@ export function BusinessProfileView() {
         <CardBody>
           <VerificationProgress track="MERCHANT" status={p.user.status} />
           {p.user.status === "REJECTED" && p.reviewNote && (
-            <Alert tone="danger" title="Verification not approved" className="mt-5">
-              {p.reviewNote}
+            <Alert tone="danger" title={t("Verification not approved")} className="mt-5">
+              {t(p.reviewNote)}
             </Alert>
           )}
         </CardBody>
       </Card>
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader title="Business details" icon={<Building className="h-[18px] w-[18px]" />} />
+          <CardHeader title={t("Business details")} icon={<Building className="h-[18px] w-[18px]" />} />
           <CardBody>
             <DescriptionList
               items={[
-                { label: "Owner", value: m.ownerName },
-                { label: "Owner NID", value: p.nidMasked ?? "—" },
-                { label: "Business address", value: m.businessAddress },
-                { label: "Registration no.", value: m.registrationNumber },
-                { label: "Trade license", value: m.tradeLicenseNumber },
-                { label: "TIN / BIN", value: m.taxId ?? "—" },
-                { label: "Settlement account", value: m.settlementAccount },
-                { label: "Contact", value: `${p.user.phone} · ${p.user.email ?? "—"}` },
+                { label: t("Owner"), value: m.ownerName },
+                { label: t("Owner NID"), value: p.nidMasked ?? "—" },
+                { label: t("Business address"), value: m.businessAddress },
+                { label: t("Registration no."), value: m.registrationNumber },
+                { label: t("Trade license"), value: m.tradeLicenseNumber },
+                { label: t("TIN / BIN"), value: m.taxId ?? "—" },
+                { label: t("Settlement account"), value: t(m.settlementAccount) },
+                { label: t("Contact"), value: `${p.user.phone} · ${p.user.email ?? "—"}` },
               ]}
             />
           </CardBody>
         </Card>
         <div className="space-y-6">
           <Card>
-            <CardHeader title="Verification documents" />
+            <CardHeader title={t("Verification documents")} />
             <CardBody>
               <DocumentList documents={p.documents} />
             </CardBody>
           </Card>
           <Card>
-            <CardHeader title="Status history" icon={<RotateCcw className="h-[18px] w-[18px]" />} />
+            <CardHeader title={t("Status history")} icon={<RotateCcw className="h-[18px] w-[18px]" />} />
             <CardBody>
               <StatusTimeline events={p.timeline} />
             </CardBody>

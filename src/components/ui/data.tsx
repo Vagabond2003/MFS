@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/hooks/use-i18n";
 
 /* ───────────── Tabs (segmented control) ───────────── */
 
@@ -20,24 +21,24 @@ export function Tabs<T extends string>({
 }) {
   return (
     <div role="tablist" aria-label={ariaLabel} className={cn("no-scrollbar flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1", className)}>
-      {tabs.map((t) => {
-        const active = t.value === value;
+      {tabs.map((tab) => {
+        const active = tab.value === value;
         return (
           <button
-            key={t.value}
+            key={tab.value}
             role="tab"
             type="button"
             aria-selected={active}
-            onClick={() => onChange(t.value)}
+            onClick={() => onChange(tab.value)}
             className={cn(
               "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition",
               active ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800",
             )}
           >
-            {t.label}
-            {t.count !== undefined && (
+            {tab.label}
+            {tab.count !== undefined && (
               <span className={cn("rounded-full px-1.5 text-xs", active ? "bg-accent-100 text-accent-700" : "bg-slate-200 text-slate-600")}>
-                {t.count}
+                {tab.count}
               </span>
             )}
           </button>
@@ -107,13 +108,14 @@ export function Pagination({
   pageSize: number;
   onChange: (p: number) => void;
 }) {
+  const { t } = useI18n();
   if (total === 0) return null;
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
   return (
-    <nav className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 text-sm sm:px-6" aria-label="Pagination">
+    <nav className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 text-sm sm:px-6" aria-label={t("Pagination")}>
       <p className="text-slate-500">
-        <span className="tabular font-medium text-slate-700">{from}–{to}</span> of <span className="tabular font-medium text-slate-700">{total.toLocaleString("en-IN")}</span>
+        <span className="tabular font-medium text-slate-700">{from}–{to}</span> {t("of")} <span className="tabular font-medium text-slate-700">{total.toLocaleString("en-IN")}</span>
       </p>
       <div className="flex items-center gap-1">
         <button
@@ -121,7 +123,7 @@ export function Pagination({
           onClick={() => onChange(page - 1)}
           disabled={page <= 1}
           className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-          aria-label="Previous page"
+          aria-label={t("Previous page")}
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -133,7 +135,7 @@ export function Pagination({
           onClick={() => onChange(page + 1)}
           disabled={page >= totalPages}
           className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-          aria-label="Next page"
+          aria-label={t("Next page")}
         >
           <ChevronRight className="h-4 w-4" />
         </button>
@@ -153,7 +155,7 @@ export function StatTile({
   value,
   icon,
   delta,
-  deltaLabel = "vs last month",
+  deltaLabel,
   upIsGood = true,
   hint,
   className,
@@ -169,6 +171,7 @@ export function StatTile({
   className?: string;
   tone?: "default" | "dark";
 }) {
+  const { t } = useI18n();
   const hasDelta = delta !== undefined && delta !== null && Number.isFinite(delta);
   const up = hasDelta && delta! >= 0;
   const good = hasDelta && (up === upIsGood);
@@ -198,7 +201,7 @@ export function StatTile({
               {Math.abs(delta!).toFixed(0)}%
             </span>
           )}
-          {hasDelta && <span className={tone === "dark" ? "text-slate-400" : "text-slate-400"}>{deltaLabel}</span>}
+          {hasDelta && <span className={tone === "dark" ? "text-slate-400" : "text-slate-400"}>{deltaLabel ?? t("vs last month")}</span>}
           {!hasDelta && hint && <span className={tone === "dark" ? "text-slate-400" : "text-slate-500"}>{hint}</span>}
         </div>
       )}
@@ -224,8 +227,9 @@ export function DescriptionList({ items, className }: { items: { label: string; 
 /* ───────────── Stepper ───────────── */
 
 export function Stepper({ steps, current }: { steps: string[]; current: number }) {
+  const { t } = useI18n();
   return (
-    <ol className="flex items-center gap-2" aria-label="Progress">
+    <ol className="flex items-center gap-2" aria-label={t("Progress")}>
       {steps.map((s, i) => {
         const state = i < current ? "done" : i === current ? "current" : "todo";
         return (

@@ -7,6 +7,8 @@
  * phone numbers, password/PIN hashes) never appear here.
  */
 
+import type { Lang } from "@/lib/i18n/core";
+
 /** Integer amount in minor units (poisha). ৳1.00 === 100. Never floats. */
 export type Money = number;
 
@@ -33,6 +35,8 @@ export interface CurrentUser {
   email: string | null;
   status: AccountStatus;
   twoFactorEnabled: boolean;
+  /** Saved interface language; null when the account has no saved preference. */
+  language: Lang | null;
   /** Development/demo account flag — rendered as a visible badge. */
   isDemo: boolean;
   createdAt: string;

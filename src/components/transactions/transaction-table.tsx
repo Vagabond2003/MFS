@@ -6,31 +6,33 @@ import { Table, TD, TH, THead, TR } from "@/components/ui/data";
 import { Skeleton } from "@/components/ui/feedback";
 import { cn, formatDateTime, formatMoney, formatRelative } from "@/lib/utils";
 import type { TransactionView } from "@/types/domain";
+import { useI18n } from "@/hooks/use-i18n";
 import { PAYMENT_METHOD_LABEL, TXN_META, TxnIcon } from "./meta";
 
 export type TableVariant = "personal" | "agent" | "merchant" | "admin";
 
-function Amount({ t }: { t: TransactionView }) {
-  const failed = t.status === "FAILED" || t.status === "CANCELLED";
-  const value = t.type === "COMMISSION" ? t.commission : t.amount;
+function Amount({ txn }: { txn: TransactionView }) {
+  const failed = txn.status === "FAILED" || txn.status === "CANCELLED";
+  const value = txn.type === "COMMISSION" ? txn.commission : txn.amount;
   return (
     <span
       className={cn(
         "tabular font-semibold",
-        failed ? "text-slate-400 line-through decoration-slate-300" : t.direction === "IN" ? "text-emerald-700" : "text-slate-900",
+        failed ? "text-slate-400 line-through decoration-slate-300" : txn.direction === "IN" ? "text-emerald-700" : "text-slate-900",
       )}
     >
-      {t.direction === "IN" ? "+" : "−"}
+      {txn.direction === "IN" ? "+" : "−"}
       {formatMoney(value)}
     </span>
   );
 }
 
-function Counterparty({ t }: { t: TransactionView }) {
+function Counterparty({ txn }: { txn: TransactionView }) {
+  const { t } = useI18n();
   return (
     <div className="min-w-0">
-      <p className="truncate font-medium text-slate-900">{t.counterparty.name}</p>
-      <p className="tabular truncate text-xs text-slate-500">{t.counterparty.account}</p>
+      <p className="truncate font-medium text-slate-900">{t(txn.counterparty.name)}</p>
+      <p className="tabular truncate text-xs text-slate-500">{txn.counterparty.account}</p>
     </div>
   );
 }
@@ -44,10 +46,11 @@ export function TransactionTable({
 }: {
   items: TransactionView[] | undefined;
   variant: TableVariant;
-  onSelect?: (t: TransactionView) => void;
+  onSelect?: (txn: TransactionView) => void;
   loading?: boolean;
   emptyState?: React.ReactNode;
 }) {
+  const { t, lang } = useI18n();
   if (loading && !items) return <TableSkeleton />;
   if (!items?.length) return <>{emptyState}</>;
 
@@ -55,23 +58,23 @@ export function TransactionTable({
     <>
       {/* Mobile: list */}
       <ul className="divide-y divide-slate-100 md:hidden">
-        {items.map((t) => (
-          <li key={t.id}>
+        {items.map((txn) => (
+          <li key={txn.id}>
             <button
               type="button"
-              onClick={() => onSelect?.(t)}
+              onClick={() => onSelect?.(txn)}
               className="flex w-full items-center gap-3 px-5 py-3 text-left active:bg-slate-50"
             >
-              <TxnIcon type={t.type} direction={t.direction} status={t.status} />
+              <TxnIcon type={txn.type} direction={txn.direction} status={txn.status} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-slate-900">{TXN_META[t.type].label}</p>
+                <p className="truncate text-sm font-semibold text-slate-900">{t(TXN_META[txn.type].label)}</p>
                 <p className="truncate text-xs text-slate-500">
-                  {t.counterparty.name} · {formatRelative(t.createdAt)}
+                  {t(txn.counterparty.name)} · {formatRelative(txn.createdAt, lang)}
                 </p>
               </div>
               <div className="flex flex-col items-end gap-1">
-                <Amount t={t} />
-                {t.status !== "SUCCESSFUL" && <TxnStatusBadge status={t.status} />}
+                <Amount txn={txn} />
+                {txn.status !== "SUCCESSFUL" && <TxnStatusBadge status={txn.status} />}
               </div>
             </button>
           </li>
@@ -83,95 +86,95 @@ export function TransactionTable({
         <THead>
           {variant === "admin" ? (
             <>
-              <TH>Transaction</TH>
-              <TH>From</TH>
-              <TH>To</TH>
-              <TH>Date</TH>
-              <TH align="right">Amount</TH>
-              <TH align="right">Fees</TH>
-              <TH>Status</TH>
+              <TH>{t("Transaction")}</TH>
+              <TH>{t("From")}</TH>
+              <TH>{t("To")}</TH>
+              <TH>{t("Date")}</TH>
+              <TH align="right">{t("Amount")}</TH>
+              <TH align="right">{t("Fees")}</TH>
+              <TH>{t("Status")}</TH>
             </>
           ) : (
             <>
-              <TH>{variant === "personal" ? "Date" : "Transaction ID"}</TH>
-              {variant === "personal" && <TH>Transaction ID</TH>}
-              <TH>Type</TH>
-              <TH>{variant === "merchant" ? "Customer" : variant === "agent" ? "Customer" : "Recipient / Sender"}</TH>
-              {variant === "merchant" && <TH>Method</TH>}
-              <TH align="right">Amount</TH>
-              {variant === "agent" && <TH align="right">Commission</TH>}
-              {variant !== "personal" && <TH>Date</TH>}
-              <TH>Status</TH>
+              <TH>{variant === "personal" ? t("Date") : t("Transaction ID")}</TH>
+              {variant === "personal" && <TH>{t("Transaction ID")}</TH>}
+              <TH>{t("Type")}</TH>
+              <TH>{variant === "personal" ? t("Recipient / Sender") : t("Customer")}</TH>
+              {variant === "merchant" && <TH>{t("Method")}</TH>}
+              <TH align="right">{t("Amount")}</TH>
+              {variant === "agent" && <TH align="right">{t("Commission")}</TH>}
+              {variant !== "personal" && <TH>{t("Date")}</TH>}
+              <TH>{t("Status")}</TH>
             </>
           )}
           <TH className="w-8" />
         </THead>
         <tbody>
-          {items.map((t) =>
+          {items.map((txn) =>
             variant === "admin" ? (
-              <TR key={t.id} onClick={onSelect ? () => onSelect(t) : undefined}>
+              <TR key={txn.id} onClick={onSelect ? () => onSelect(txn) : undefined}>
                 <TD>
                   <div className="flex items-center gap-3">
-                    <TxnIcon type={t.type} direction="OUT" status={t.status} size="sm" />
+                    <TxnIcon type={txn.type} direction="OUT" status={txn.status} size="sm" />
                     <div>
-                      <p className="font-medium text-slate-900">{TXN_META[t.type].label}</p>
-                      <p className="tabular font-mono text-xs text-slate-500">{t.trxId}</p>
+                      <p className="font-medium text-slate-900">{t(TXN_META[txn.type].label)}</p>
+                      <p className="tabular font-mono text-xs text-slate-500">{txn.trxId}</p>
                     </div>
                   </div>
                 </TD>
                 <TD>
-                  <p className="font-medium text-slate-800">{t.sender.name}</p>
-                  <p className="tabular text-xs text-slate-500">{t.sender.account}</p>
+                  <p className="font-medium text-slate-800">{t(txn.sender.name)}</p>
+                  <p className="tabular text-xs text-slate-500">{txn.sender.account}</p>
                 </TD>
                 <TD>
-                  <p className="font-medium text-slate-800">{t.receiver.name}</p>
-                  <p className="tabular text-xs text-slate-500">{t.receiver.account}</p>
+                  <p className="font-medium text-slate-800">{t(txn.receiver.name)}</p>
+                  <p className="tabular text-xs text-slate-500">{txn.receiver.account}</p>
                 </TD>
-                <TD className="whitespace-nowrap text-slate-600">{formatDateTime(t.createdAt)}</TD>
+                <TD className="whitespace-nowrap text-slate-600">{formatDateTime(txn.createdAt, lang)}</TD>
                 <TD align="right">
-                  <span className="tabular font-semibold text-slate-900">{formatMoney(t.amount)}</span>
+                  <span className="tabular font-semibold text-slate-900">{formatMoney(txn.amount)}</span>
                 </TD>
                 <TD align="right" className="tabular text-slate-600">
-                  {t.fee ? formatMoney(t.fee) : "—"}
+                  {txn.fee ? formatMoney(txn.fee) : "—"}
                 </TD>
                 <TD>
-                  <TxnStatusBadge status={t.status} />
+                  <TxnStatusBadge status={txn.status} />
                 </TD>
                 <TD>
                   <ChevronRight className="h-4 w-4 text-slate-300" aria-hidden />
                 </TD>
               </TR>
             ) : (
-              <TR key={t.id} onClick={onSelect ? () => onSelect(t) : undefined}>
+              <TR key={txn.id} onClick={onSelect ? () => onSelect(txn) : undefined}>
                 {variant === "personal" ? (
                   <>
-                    <TD className="whitespace-nowrap text-slate-600">{formatDateTime(t.createdAt)}</TD>
-                    <TD className="tabular font-mono text-xs text-slate-600">{t.trxId}</TD>
+                    <TD className="whitespace-nowrap text-slate-600">{formatDateTime(txn.createdAt, lang)}</TD>
+                    <TD className="tabular font-mono text-xs text-slate-600">{txn.trxId}</TD>
                   </>
                 ) : (
-                  <TD className="tabular font-mono text-xs text-slate-600">{t.trxId}</TD>
+                  <TD className="tabular font-mono text-xs text-slate-600">{txn.trxId}</TD>
                 )}
                 <TD>
                   <div className="flex items-center gap-2.5">
-                    <TxnIcon type={t.type} direction={t.direction} status={t.status} size="sm" />
-                    <span className="whitespace-nowrap font-medium text-slate-800">{TXN_META[t.type].label}</span>
+                    <TxnIcon type={txn.type} direction={txn.direction} status={txn.status} size="sm" />
+                    <span className="whitespace-nowrap font-medium text-slate-800">{t(TXN_META[txn.type].label)}</span>
                   </div>
                 </TD>
                 <TD>
-                  <Counterparty t={t} />
+                  <Counterparty txn={txn} />
                 </TD>
-                {variant === "merchant" && <TD className="whitespace-nowrap text-slate-600">{t.paymentMethod ? PAYMENT_METHOD_LABEL[t.paymentMethod] : "—"}</TD>}
+                {variant === "merchant" && <TD className="whitespace-nowrap text-slate-600">{txn.paymentMethod ? t(PAYMENT_METHOD_LABEL[txn.paymentMethod]) : "—"}</TD>}
                 <TD align="right">
-                  <Amount t={t} />
+                  <Amount txn={txn} />
                 </TD>
                 {variant === "agent" && (
                   <TD align="right" className="tabular font-medium text-slate-700">
-                    {t.commission ? formatMoney(t.commission) : "—"}
+                    {txn.commission ? formatMoney(txn.commission) : "—"}
                   </TD>
                 )}
-                {variant !== "personal" && <TD className="whitespace-nowrap text-slate-600">{formatDateTime(t.createdAt)}</TD>}
+                {variant !== "personal" && <TD className="whitespace-nowrap text-slate-600">{formatDateTime(txn.createdAt, lang)}</TD>}
                 <TD>
-                  <TxnStatusBadge status={t.status} />
+                  <TxnStatusBadge status={txn.status} />
                 </TD>
                 <TD>
                   <ChevronRight className="h-4 w-4 text-slate-300" aria-hidden />

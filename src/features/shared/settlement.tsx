@@ -11,6 +11,7 @@ import { AmountInput, ChoiceChips, Field } from "@/components/ui/form";
 import { TransactionFlow, type FlowFormContext } from "@/components/flows/transaction-flow";
 import { useApi } from "@/hooks/use-api";
 import { useCurrentUser } from "@/hooks/use-auth";
+import { useI18n } from "@/hooks/use-i18n";
 import { api } from "@/services";
 import { formatDate, formatMoney, toMinor } from "@/lib/utils";
 import { takaAmountSchema } from "@/lib/validation";
@@ -20,6 +21,7 @@ import { InfoCard, QuickAmounts } from "./flow-aside";
 /* ───────────── Settlement ───────────── */
 
 function SettlementForm({ submit, busy, role }: FlowFormContext & { role: "AGENT" | "MERCHANT" }) {
+  const { t } = useI18n();
   const [direction, setDirection] = useState<"TO_BANK" | "FLOAT_TOP_UP">("TO_BANK");
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -37,54 +39,55 @@ function SettlementForm({ submit, busy, role }: FlowFormContext & { role: "AGENT
     >
       {role === "AGENT" && (
         <div className="space-y-2">
-          <p className="text-sm font-medium text-slate-700">Settlement type</p>
+          <p className="text-sm font-medium text-slate-700">{t("Settlement type")}</p>
           <ChoiceChips
-            ariaLabel="Settlement type"
+            ariaLabel={t("Settlement type")}
             value={direction}
             onChange={setDirection}
             options={[
-              { value: "TO_BANK", label: "E-money → bank" },
-              { value: "FLOAT_TOP_UP", label: "Cash → e-money float" },
+              { value: "TO_BANK", label: t("E-money → bank") },
+              { value: "FLOAT_TOP_UP", label: t("Cash → e-money float") },
             ]}
           />
           <p className="text-xs text-slate-500">
-            {direction === "TO_BANK" ? "Move surplus e-money to your linked bank account." : "Deposit outlet cash at the bank to top up your e-money float."}
+            {direction === "TO_BANK" ? t("Move surplus e-money to your linked bank account.") : t("Deposit outlet cash at the bank to top up your e-money float.")}
           </p>
         </div>
       )}
-      <Field label="Amount" required>
+      <Field label={t("Amount")} required>
         {(p) => <AmountInput {...p} value={amount} onChange={(e) => setAmount(e.target.value)} />}
       </Field>
       <QuickAmounts values={[5000, 10000, 25000, 50000]} onPick={(v) => setAmount(String(v))} />
-      {error && <Alert tone="danger">{error}</Alert>}
+      {error && <Alert tone="danger">{t(error)}</Alert>}
       <Button type="submit" size="lg" fullWidth loading={busy}>
-        Continue
+        {t("Continue")}
       </Button>
     </form>
   );
 }
 
 export function SettlementHistory({ items, loading }: { items: SettlementView[] | undefined; loading: boolean }) {
+  const { t, lang } = useI18n();
   if (loading && !items) return <Skeleton className="m-6 h-40" />;
-  if (!items?.length) return <EmptyState icon={<Landmark className="h-6 w-6" />} title="No settlements yet" />;
+  if (!items?.length) return <EmptyState icon={<Landmark className="h-6 w-6" />} title={t("No settlements yet")} />;
   return (
     <Table>
       <THead>
-        <TH>Transaction</TH>
-        <TH>Type</TH>
-        <TH>Destination</TH>
-        <TH align="right">Amount</TH>
-        <TH>Requested</TH>
-        <TH>Status</TH>
+        <TH>{t("Transaction")}</TH>
+        <TH>{t("Type")}</TH>
+        <TH>{t("Destination")}</TH>
+        <TH align="right">{t("Amount")}</TH>
+        <TH>{t("Requested")}</TH>
+        <TH>{t("Status")}</TH>
       </THead>
       <tbody>
         {items.map((s) => (
           <TR key={s.id}>
             <TD className="tabular font-mono text-xs">{s.trxId}</TD>
-            <TD className="whitespace-nowrap">{s.direction === "TO_BANK" ? "To bank" : "Float top-up"}</TD>
-            <TD className="text-slate-600">{s.destination}</TD>
+            <TD className="whitespace-nowrap">{s.direction === "TO_BANK" ? t("To bank") : t("Float top-up")}</TD>
+            <TD className="text-slate-600">{t(s.destination)}</TD>
             <TD align="right" className="tabular font-semibold">{formatMoney(s.amount)}</TD>
-            <TD className="whitespace-nowrap text-slate-500">{formatDate(s.createdAt)}</TD>
+            <TD className="whitespace-nowrap text-slate-500">{formatDate(s.createdAt, lang)}</TD>
             <TD>
               <TxnStatusBadge status={s.status} />
             </TD>
@@ -96,33 +99,34 @@ export function SettlementHistory({ items, loading }: { items: SettlementView[] 
 }
 
 export function SettlementPage({ role }: { role: "AGENT" | "MERCHANT" }) {
+  const { t } = useI18n();
   const user = useCurrentUser();
   const wallet = useApi(() => api.wallet.get(), [], { tags: ["wallet"] });
   const list = useApi(() => (role === "AGENT" ? api.agent.settlements() : api.merchant.settlements()), [role], { tags: ["settlements"], pollMs: 20_000 });
   const w = wallet.data;
   const locked =
     user.status !== "VERIFIED" ? (
-      <p>Settlements are available after your {role === "AGENT" ? "agent account" : "business"} is verified.</p>
+      <p>{role === "AGENT" ? t("Settlements are available after your agent account is verified.") : t("Settlements are available after your business is verified.")}</p>
     ) : undefined;
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow={role === "AGENT" ? "Business" : "Money"} title="Settlement" description={role === "AGENT" ? "Keep your float balanced between e-money and cash." : "Move your sales balance to your bank account."} />
+      <PageHeader eyebrow={role === "AGENT" ? t("Business") : t("Money")} title={t("Settlement")} description={role === "AGENT" ? t("Keep your float balanced between e-money and cash.") : t("Move your sales balance to your bank account.")} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <StatTile label={role === "AGENT" ? "E-money balance" : "Available to settle"} value={w ? formatMoney(w.available) : "—"} icon={<Wallet className="h-4 w-4" />} />
-        {role === "AGENT" && <StatTile label="Cash in hand" value={w ? formatMoney(w.cashInHand ?? 0) : "—"} icon={<Banknote className="h-4 w-4" />} />}
-        <StatTile label="Pending settlement" value={w ? formatMoney(w.pending) : "—"} icon={<Hourglass className="h-4 w-4" />} />
+        <StatTile label={role === "AGENT" ? t("E-money balance") : t("Available to settle")} value={w ? formatMoney(w.available) : "—"} icon={<Wallet className="h-4 w-4" />} />
+        {role === "AGENT" && <StatTile label={t("Cash in hand")} value={w ? formatMoney(w.cashInHand ?? 0) : "—"} icon={<Banknote className="h-4 w-4" />} />}
+        <StatTile label={t("Pending settlement")} value={w ? formatMoney(w.pending) : "—"} icon={<Hourglass className="h-4 w-4" />} />
       </div>
       <TransactionFlow
         locked={locked}
         doneHref={role === "AGENT" ? "/dashboard/agent" : "/dashboard/merchant"}
-        pinLabel="Enter your PIN to authorise"
-        confirmLabel={(q) => `Settle ${formatMoney(q.amount)}`}
+        pinLabel={t("Enter your PIN to authorise")}
+        confirmLabel={(q) => t("Settle {amount}", { amount: formatMoney(q.amount) })}
         renderForm={(ctx) => <SettlementForm {...ctx} role={role} />}
-        aside={<InfoCard title="Settlement" items={[{ label: "Fee", value: "Free" }, { label: "Clearing", value: "~2 min (demo)" }, { label: "OTP", value: "From ৳10,000" }]} />}
+        aside={<InfoCard title={t("Settlement")} items={[{ label: t("Fee"), value: t("Free") }, { label: t("Clearing"), value: t("~2 min (demo)") }, { label: t("OTP"), value: t("From ৳10,000") }]} />}
       />
       <Card>
-        <CardHeader title="Settlement history" />
+        <CardHeader title={t("Settlement history")} />
         <div className="mt-4">
           <SettlementHistory items={list.data} loading={list.loading} />
         </div>

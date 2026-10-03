@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
 import { SettlementPage } from "@/features/shared/settlement";
+import { titled } from "@/lib/i18n/server";
 
-export const metadata: Metadata = { title: "Settlement" };
+export const generateMetadata = titled("Settlement");
 
 export default function Page() {
   return <SettlementPage role="MERCHANT" />;

@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Unauthorized } from "@/features/auth/unauthorized";
+import { titled } from "@/lib/i18n/server";
 
-export const metadata: Metadata = { title: "Not authorised" };
+export const generateMetadata = titled("Not authorised");
 
 export default function UnauthorizedPage() {
   return (

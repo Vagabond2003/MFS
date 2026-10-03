@@ -2,6 +2,8 @@
 
 import { Banknote, Wallet } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { LanguageToggle } from "@/components/ui/language-toggle";
+import { useI18n } from "@/hooks/use-i18n";
 import { AccountStatusBadge } from "@/components/ui/badge";
 import { AGENT_MOBILE, AGENT_NAV } from "@/config/navigation";
 import { useApi } from "@/hooks/use-api";
@@ -17,6 +19,7 @@ import { MobileBottomNav, NotificationBell, SidebarNav, UserMenu, useThemeClass 
  */
 export function AgentShell({ children }: { children: React.ReactNode }) {
   useThemeClass("theme-agent");
+  const { t } = useI18n();
   const user = useCurrentUser();
   const wallet = useApi(() => api.wallet.get(), [], { tags: ["wallet"] });
 
@@ -24,7 +27,7 @@ export function AgentShell({ children }: { children: React.ReactNode }) {
     <div className="theme-agent min-h-dvh bg-[#f3f4f6]">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] flex-col bg-slate-950 text-white lg:flex">
         <div className="flex h-16 items-center gap-2 px-5">
-          <Logo href="/dashboard/agent" tone="light" suffix={<span className="rounded-md bg-accent-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent-fg">Agent</span>} />
+          <Logo href="/dashboard/agent" tone="light" suffix={<span className="rounded-md bg-accent-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent-fg">{t("Agent")}</span>} />
         </div>
         <div className="mx-4 mb-2 rounded-xl border border-white/10 bg-white/5 p-3">
           <p className="truncate text-sm font-semibold">{user.outletName ?? user.name}</p>
@@ -46,28 +49,30 @@ export function AgentShell({ children }: { children: React.ReactNode }) {
             <div className="lg:hidden">
               <Logo href="/dashboard/agent" tone="light" />
             </div>
-            <div className="hidden items-center gap-2 lg:flex" aria-label="Float balances">
-              <FloatPill icon={<Wallet className="h-4 w-4" />} label="E-money" value={wallet.data ? formatMoney(wallet.data.available) : "—"} />
-              <FloatPill icon={<Banknote className="h-4 w-4" />} label="Cash in hand" value={wallet.data?.cashInHand != null ? formatMoney(wallet.data.cashInHand) : "—"} />
+            <div className="hidden items-center gap-2 lg:flex" aria-label={t("Float balances")}>
+              <FloatPill icon={<Wallet className="h-4 w-4" />} label={t("E-money")} value={wallet.data ? formatMoney(wallet.data.available) : "—"} />
+              <FloatPill icon={<Banknote className="h-4 w-4" />} label={t("Cash in hand")} value={wallet.data?.cashInHand != null ? formatMoney(wallet.data.cashInHand) : "—"} />
             </div>
             <div className="flex items-center gap-1">
-              <div className="lg:hidden">
+              <div className="flex items-center gap-1 lg:hidden">
+                <LanguageToggle tone="dark" className="mr-1" />
                 <NotificationBell tone="dark" />
               </div>
-              <div className="hidden lg:block">
+              <div className="hidden items-center gap-1 lg:flex">
+                <LanguageToggle className="mr-1" />
                 <NotificationBell />
               </div>
-              <UserMenu subtitle={`Agent · ${user.agentCode ?? ""}`} />
+              <UserMenu subtitle={`${t("Agent")} · ${user.agentCode ?? ""}`} />
             </div>
           </div>
           {/* Mobile float strip */}
           <div className="grid grid-cols-2 gap-2 px-4 pb-3 lg:hidden">
             <div className="rounded-xl bg-white/10 px-3 py-2">
-              <p className="text-[11px] text-slate-400">E-money</p>
+              <p className="text-[11px] text-slate-400">{t("E-money")}</p>
               <p className="tabular text-sm font-bold">{wallet.data ? formatMoney(wallet.data.available) : "—"}</p>
             </div>
             <div className="rounded-xl bg-white/10 px-3 py-2">
-              <p className="text-[11px] text-slate-400">Cash in hand</p>
+              <p className="text-[11px] text-slate-400">{t("Cash in hand")}</p>
               <p className="tabular text-sm font-bold">{wallet.data?.cashInHand != null ? formatMoney(wallet.data.cashInHand) : "—"}</p>
             </div>
           </div>
@@ -75,7 +80,7 @@ export function AgentShell({ children }: { children: React.ReactNode }) {
         <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-12">{children}</main>
       </div>
 
-      <MobileBottomNav items={AGENT_MOBILE.items} sheetTitle="Agent services" sheetItems={AGENT_MOBILE.more} tone="dark" />
+      <MobileBottomNav items={AGENT_MOBILE.items} sheetTitle={t("Agent services")} sheetItems={AGENT_MOBILE.more} tone="dark" />
     </div>
   );
 }

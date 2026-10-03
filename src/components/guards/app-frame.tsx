@@ -8,6 +8,7 @@ import { AgentShell } from "@/components/shells/agent-shell";
 import { MerchantShell } from "@/components/shells/merchant-shell";
 import { PersonalShell } from "@/components/shells/personal-shell";
 import { useAuth } from "@/hooks/use-auth";
+import { useI18n } from "@/hooks/use-i18n";
 import { canAccess } from "@/lib/auth/access";
 import type { Role } from "@/types/domain";
 
@@ -24,6 +25,7 @@ const SHELLS: Record<Role, React.ComponentType<{ children: React.ReactNode }>> =
  * not from the cookie, so a tampered cookie still lands on 403.
  */
 export function AppFrame({ children }: { children: React.ReactNode }) {
+  const { t } = useI18n();
   const { status, user } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
@@ -37,8 +39,8 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
     }
   }, [status, user, pathname, router]);
 
-  if (status !== "authenticated" || !user) return <FullScreenLoader label="Checking your session…" />;
-  if (!allowed) return <FullScreenLoader label="Checking permissions…" />;
+  if (status !== "authenticated" || !user) return <FullScreenLoader label={t("Checking your session…")} />;
+  if (!allowed) return <FullScreenLoader label={t("Checking permissions…")} />;
 
   const Shell = SHELLS[user.role];
   return <Shell>{children}</Shell>;

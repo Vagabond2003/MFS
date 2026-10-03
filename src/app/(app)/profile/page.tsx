@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
 import { ProfilePage } from "@/features/profile/profile-page";
+import { titled } from "@/lib/i18n/server";
 
-export const metadata: Metadata = { title: "Profile & Security" };
+export const generateMetadata = titled("Profile & Security");
 
 export default function Page() {
   return <ProfilePage />;

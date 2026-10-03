@@ -12,6 +12,7 @@ import { Alert, EmptyState, ErrorState, Skeleton } from "@/components/ui/feedbac
 import { ConfirmDialog, Modal, Sheet } from "@/components/ui/modal";
 import { invalidate, useApi } from "@/hooks/use-api";
 import { api } from "@/services";
+import { useI18n } from "@/hooks/use-i18n";
 import { toApiError } from "@/services/errors";
 import { cn, formatDateTime, formatRelative } from "@/lib/utils";
 import type { VerificationApplication, VerificationDocument } from "@/types/domain";
@@ -29,6 +30,7 @@ export function AdminVerifications() {
 }
 
 function VerificationsInner() {
+  const { t, lang } = useI18n();
   const params = useSearchParams();
   const [role, setRole] = useState<RoleFilter>("ALL");
   const [status, setStatus] = useState<StatusFilter>("PENDING_ANY");
@@ -37,29 +39,29 @@ function VerificationsInner() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Admin" title="Verifications" description="Review agent and merchant applications. Approve or reject documents, then record a decision." />
+      <PageHeader eyebrow={t("Admin")} title={t("Verifications")} description={t("Review agent and merchant applications. Approve or reject documents, then record a decision.")} />
       <Card>
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
           <Tabs<StatusFilter>
-            ariaLabel="Status"
+            ariaLabel={t("Status")}
             value={status}
             onChange={setStatus}
             tabs={[
-              { value: "PENDING_ANY", label: "Awaiting review" },
-              { value: "VERIFIED", label: "Verified" },
-              { value: "REJECTED", label: "Rejected" },
-              { value: "ALL", label: "All" },
+              { value: "PENDING_ANY", label: t("Awaiting review") },
+              { value: "VERIFIED", label: t("Verified") },
+              { value: "REJECTED", label: t("Rejected") },
+              { value: "ALL", label: t("All") },
             ]}
             className="inline-flex"
           />
           <Tabs<RoleFilter>
-            ariaLabel="Role"
+            ariaLabel={t("Role")}
             value={role}
             onChange={setRole}
             tabs={[
-              { value: "ALL", label: "All" },
-              { value: "AGENT", label: "Agents" },
-              { value: "MERCHANT", label: "Merchants" },
+              { value: "ALL", label: t("All") },
+              { value: "AGENT", label: t("Agents") },
+              { value: "MERCHANT", label: t("Merchants") },
             ]}
             className="inline-flex"
           />
@@ -69,7 +71,7 @@ function VerificationsInner() {
         ) : queue.loading ? (
           <Skeleton className="m-6 h-48" />
         ) : !queue.data?.length ? (
-          <EmptyState icon={<BadgeCheck className="h-6 w-6" />} title="Nothing here" description={status === "PENDING_ANY" ? "No applications are waiting. New agent and merchant sign-ups appear here." : "No applications match this filter."} />
+          <EmptyState icon={<BadgeCheck className="h-6 w-6" />} title={t("Nothing here")} description={status === "PENDING_ANY" ? t("No applications are waiting. New agent and merchant sign-ups appear here.") : t("No applications match this filter.")} />
         ) : (
           <ul className="divide-y divide-slate-100">
             {queue.data.map((a) => {
@@ -84,13 +86,13 @@ function VerificationsInner() {
                       <div className="min-w-0">
                         <p className="truncate font-semibold text-slate-900">{a.businessName ?? a.applicantName}</p>
                         <p className="truncate text-xs text-slate-500">
-                          {a.role === "AGENT" ? "Agent" : "Merchant"} · {a.applicantName} · {a.phoneMasked} · submitted {formatRelative(a.submittedAt)}
+                          {a.role === "AGENT" ? t("Agent") : t("Merchant")} · {a.applicantName} · {a.phoneMasked} · {t("submitted {when}", { when: formatRelative(a.submittedAt, lang) })}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 pl-[52px] sm:pl-0">
                       <span className="text-xs text-slate-500">
-                        {a.documents.length} docs{pendingDocs ? ` · ${pendingDocs} to review` : ""}
+                        {t("{n} docs", { n: a.documents.length })}{pendingDocs ? ` · ${t("{n} to review", { n: pendingDocs })}` : ""}
                       </span>
                       <AccountStatusBadge status={a.status} />
                     </div>
@@ -107,6 +109,7 @@ function VerificationsInner() {
 }
 
 function ReviewDrawer({ userId, onClose, onChanged }: { userId: string | null; onClose: () => void; onChanged: () => void }) {
+  const { t, lang } = useI18n();
   const all = useApi(() => api.admin.verificationQueue({ role: "ALL", status: "ALL" }), [userId], { enabled: !!userId });
   const app: VerificationApplication | undefined = all.data?.find((a) => a.userId === userId);
   const [decision, setDecision] = useState<"APPROVE" | "REJECT" | "START_REVIEW" | null>(null);
@@ -122,7 +125,7 @@ function ReviewDrawer({ userId, onClose, onChanged }: { userId: string | null; o
   const reviewDoc = async (d: VerificationDocument, status: "APPROVED" | "REJECTED", note: string) => {
     try {
       await api.admin.reviewDocument(d.id, status, note);
-      toast.success(`${documentLabel(d.type)} ${status.toLowerCase()}`);
+      toast.success(status === "APPROVED" ? t("{doc} approved", { doc: t(documentLabel(d.type)) }) : t("{doc} rejected", { doc: t(documentLabel(d.type)) }));
       refresh();
     } catch (e) {
       toast.error(toApiError(e).message);
@@ -136,22 +139,22 @@ function ReviewDrawer({ userId, onClose, onChanged }: { userId: string | null; o
     <Sheet
       open={!!userId}
       onClose={onClose}
-      title={app ? app.businessName ?? app.applicantName : "Application"}
-      description={app ? `${app.role === "AGENT" ? "Agent" : "Merchant"} application · ${app.phoneMasked}` : undefined}
+      title={app ? app.businessName ?? app.applicantName : t("Application")}
+      description={app ? `${app.role === "AGENT" ? t("Agent application") : t("Merchant application")} · ${app.phoneMasked}` : undefined}
       footer={
         app &&
         !decided && (
           <>
             {app.status !== "UNDER_REVIEW" && (
               <Button variant="outline" onClick={() => setDecision("START_REVIEW")}>
-                <Search className="h-4 w-4" aria-hidden /> Start review
+                <Search className="h-4 w-4" aria-hidden /> {t("Start review")}
               </Button>
             )}
             <Button variant="danger" onClick={() => setDecision("REJECT")}>
-              <X className="h-4 w-4" aria-hidden /> Reject
+              <X className="h-4 w-4" aria-hidden /> {t("Reject")}
             </Button>
             <Button onClick={() => setDecision("APPROVE")}>
-              <Check className="h-4 w-4" aria-hidden /> Approve
+              <Check className="h-4 w-4" aria-hidden /> {t("Approve")}
             </Button>
           </>
         )
@@ -168,30 +171,30 @@ function ReviewDrawer({ userId, onClose, onChanged }: { userId: string | null; o
             </div>
             {app.reviewNote && (
               <Alert tone={app.status === "REJECTED" ? "danger" : "info"} className="mt-4">
-                {app.reviewNote}
+                {t(app.reviewNote)}
               </Alert>
             )}
           </div>
           <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Application details</h3>
-            <DescriptionList items={[{ label: "Applicant", value: app.applicantName }, { label: "Submitted", value: formatDateTime(app.submittedAt) }, ...app.details]} />
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">{t("Application details")}</h3>
+            <DescriptionList items={[{ label: t("Applicant"), value: app.applicantName }, { label: t("Submitted"), value: formatDateTime(app.submittedAt, lang) }, ...app.details.map((row) => ({ ...row, label: t(row.label), value: t(row.value) }))]} />
           </section>
           <section>
-            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">Documents</h3>
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">{t("Documents")}</h3>
             <DocumentList
               documents={app.documents}
               actions={(d) => (
                 <div className="flex gap-1">
-                  <button type="button" onClick={() => setPreview(d)} className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100" aria-label={`Preview ${documentLabel(d.type)}`}>
+                  <button type="button" onClick={() => setPreview(d)} className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100" aria-label={t("Preview {doc}", { doc: t(documentLabel(d.type)) })}>
                     <Eye className="h-4 w-4" />
                   </button>
                   {d.status !== "APPROVED" && !decided && (
-                    <button type="button" onClick={() => void reviewDoc(d, "APPROVED", "")} className="grid h-8 w-8 place-items-center rounded-lg text-emerald-600 hover:bg-emerald-50" aria-label={`Approve ${documentLabel(d.type)}`}>
+                    <button type="button" onClick={() => void reviewDoc(d, "APPROVED", "")} className="grid h-8 w-8 place-items-center rounded-lg text-emerald-600 hover:bg-emerald-50" aria-label={t("Approve {doc}", { doc: t(documentLabel(d.type)) })}>
                       <Check className="h-4 w-4" />
                     </button>
                   )}
                   {d.status !== "REJECTED" && !decided && (
-                    <button type="button" onClick={() => setDocReject(d)} className="grid h-8 w-8 place-items-center rounded-lg text-rose-600 hover:bg-rose-50" aria-label={`Reject ${documentLabel(d.type)}`}>
+                    <button type="button" onClick={() => setDocReject(d)} className="grid h-8 w-8 place-items-center rounded-lg text-rose-600 hover:bg-rose-50" aria-label={t("Reject {doc}", { doc: t(documentLabel(d.type)) })}>
                       <X className="h-4 w-4" />
                     </button>
                   )}
@@ -200,7 +203,7 @@ function ReviewDrawer({ userId, onClose, onChanged }: { userId: string | null; o
             />
           </section>
           <section>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Status history</h3>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{t("Status history")}</h3>
             <StatusTimeline events={app.timeline} />
           </section>
         </div>
@@ -209,21 +212,23 @@ function ReviewDrawer({ userId, onClose, onChanged }: { userId: string | null; o
       <ConfirmDialog
         open={!!decision}
         onClose={() => setDecision(null)}
-        title={decision === "APPROVE" ? "Approve this application?" : decision === "REJECT" ? "Reject this application?" : "Start review?"}
+        title={decision === "APPROVE" ? t("Approve this application?") : decision === "REJECT" ? t("Reject this application?") : t("Start review?")}
         description={
           decision === "APPROVE"
-            ? `Pending documents are approved and the ${app?.role === "AGENT" ? "agent can start counter operations" : "merchant can receive payments"} immediately.`
+            ? app?.role === "AGENT"
+              ? t("Pending documents are approved and the agent can start counter operations immediately.")
+              : t("Pending documents are approved and the merchant can receive payments immediately.")
             : decision === "REJECT"
-              ? "The applicant is notified with your reason. Their account stays locked."
-              : "The applicant is notified that their application is under review."
+              ? t("The applicant is notified with your reason. Their account stays locked.")
+              : t("The applicant is notified that their application is under review.")
         }
-        confirmLabel={decision === "APPROVE" ? "Approve" : decision === "REJECT" ? "Reject application" : "Start review"}
+        confirmLabel={decision === "APPROVE" ? t("Approve") : decision === "REJECT" ? t("Reject application") : t("Start review")}
         tone={decision === "REJECT" ? "danger" : "default"}
-        reason={decision === "REJECT" ? { label: "Reason shared with the applicant", placeholder: "e.g. NID photo is unreadable — please re-upload." } : undefined}
+        reason={decision === "REJECT" ? { label: t("Reason shared with the applicant"), placeholder: t("e.g. NID photo is unreadable — please re-upload.") } : undefined}
         onConfirm={async (note) => {
           try {
             await api.admin.decideVerification(userId!, decision!, note);
-            toast.success(decision === "APPROVE" ? "Application approved" : decision === "REJECT" ? "Application rejected" : "Review started");
+            toast.success(decision === "APPROVE" ? t("Application approved") : decision === "REJECT" ? t("Application rejected") : t("Review started"));
             refresh();
           } catch (e) {
             toast.error(toApiError(e).message);
@@ -234,20 +239,20 @@ function ReviewDrawer({ userId, onClose, onChanged }: { userId: string | null; o
       <ConfirmDialog
         open={!!docReject}
         onClose={() => setDocReject(null)}
-        title={`Reject ${docReject ? documentLabel(docReject.type) : "document"}?`}
-        description="The applicant will need to upload a new version."
-        confirmLabel="Reject document"
+        title={t("Reject {doc}?", { doc: docReject ? t(documentLabel(docReject.type)) : t("document") })}
+        description={t("The applicant will need to upload a new version.")}
+        confirmLabel={t("Reject document")}
         tone="danger"
-        reason={{ label: "What's wrong with it?", placeholder: "e.g. Expired trade license", minLength: 3 }}
+        reason={{ label: t("What's wrong with it?"), placeholder: t("e.g. Expired trade license"), minLength: 3 }}
         onConfirm={(note) => reviewDoc(docReject!, "REJECTED", note)}
       />
-      <Modal open={!!preview} onClose={() => setPreview(null)} title={preview ? documentLabel(preview.type) : ""} description={preview?.fileName}>
+      <Modal open={!!preview} onClose={() => setPreview(null)} title={preview ? t(documentLabel(preview.type)) : ""} description={preview?.fileName}>
         <div className="grid aspect-[4/3] place-items-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 text-center">
           <div>
             <FileSearch className="mx-auto h-10 w-10 text-slate-300" aria-hidden />
-            <p className="mt-3 text-sm font-medium text-slate-600">Secure document viewer</p>
+            <p className="mt-3 text-sm font-medium text-slate-600">{t("Secure document viewer")}</p>
             <p className="mx-auto mt-1 max-w-xs text-xs text-slate-500">
-              In production this streams the file from private object storage via a short-lived signed URL. The development storage provider keeps only metadata and a SHA-256 hash.
+              {t("In production this streams the file from private object storage via a short-lived signed URL. The development storage provider keeps only metadata and a SHA-256 hash.")}
             </p>
           </div>
         </div>

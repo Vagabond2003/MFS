@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
 import { AgentCashInView } from "@/features/agent/flows";
+import { titled } from "@/lib/i18n/server";
 
-export const metadata: Metadata = { title: "Cash In" };
+export const generateMetadata = titled("Cash In");
 
 export default function Page() {
   return <AgentCashInView />;

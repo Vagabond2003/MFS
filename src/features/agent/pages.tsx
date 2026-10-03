@@ -8,31 +8,33 @@ import { DescriptionList, StatTile, Table, TD, TH, THead, TR } from "@/component
 import { Alert, EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { useApi } from "@/hooks/use-api";
 import { api } from "@/services";
+import { useI18n } from "@/hooks/use-i18n";
 import { formatDateTime, formatMoney } from "@/lib/utils";
 import { DocumentList, StatusTimeline, VerificationProgress } from "../shared/verification";
 
 /* ───────────── Commission ───────────── */
 
 export function AgentCommissionView() {
+  const { t, lang } = useI18n();
   const c = useApi(() => api.agent.commissions(), [], { tags: ["dashboard", "transactions"] });
   const d = c.data;
   if (c.error && !d) return <ErrorState message={c.error.message} onRetry={c.reload} />;
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Business" title="Commission" description="What you earn on every Cash In, Cash Out, recharge and customer payment." />
+      <PageHeader eyebrow={t("Business")} title={t("Commission")} description={t("What you earn on every Cash In, Cash Out, recharge and customer payment.")} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Today" value={d ? formatMoney(d.today) : "—"} icon={<CalendarDays className="h-4 w-4" />} />
-        <StatTile label="This week" value={d ? formatMoney(d.week) : "—"} icon={<Percent className="h-4 w-4" />} />
-        <StatTile label="This month" value={d ? formatMoney(d.month) : "—"} icon={<Wallet className="h-4 w-4" />} />
-        <StatTile label="All time" value={d ? formatMoney(d.allTime) : "—"} icon={<Trophy className="h-4 w-4" />} />
+        <StatTile label={t("Today")} value={d ? formatMoney(d.today) : "—"} icon={<CalendarDays className="h-4 w-4" />} />
+        <StatTile label={t("This week")} value={d ? formatMoney(d.week) : "—"} icon={<Percent className="h-4 w-4" />} />
+        <StatTile label={t("This month")} value={d ? formatMoney(d.month) : "—"} icon={<Wallet className="h-4 w-4" />} />
+        <StatTile label={t("All time")} value={d ? formatMoney(d.allTime) : "—"} icon={<Trophy className="h-4 w-4" />} />
       </div>
       {d ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-          <ChartCard title="Daily commission" description="Last 30 days" xKey="date" data={d.daily} series={[{ key: "amount", label: "Commission" }]}>
-            <TrendChart data={d.daily} xKey="date" series={[{ key: "amount", label: "Commission" }]} />
+          <ChartCard title={t("Daily commission")} description={t("Last 30 days")} xKey="date" data={d.daily} series={[{ key: "amount", label: t("Commission") }]}>
+            <TrendChart data={d.daily} xKey="date" series={[{ key: "amount", label: t("Commission") }]} />
           </ChartCard>
-          <ChartCard title="Monthly commission" description="Last 6 months" xKey="month" data={d.monthly} series={[{ key: "amount", label: "Commission" }]}>
-            <ColumnChart data={d.monthly} xKey="month" series={[{ key: "amount", label: "Commission" }]} />
+          <ChartCard title={t("Monthly commission")} description={t("Last 6 months")} xKey="month" data={d.monthly} series={[{ key: "amount", label: t("Commission") }]}>
+            <ColumnChart data={d.monthly} xKey="month" series={[{ key: "amount", label: t("Commission") }]} />
           </ChartCard>
         </div>
       ) : (
@@ -40,57 +42,57 @@ export function AgentCommissionView() {
       )}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
         <Card>
-          <CardHeader title="By service" description="This month" />
+          <CardHeader title={t("By service")} description={t("This month")} />
           <CardBody>
             {d?.byType.length ? (
               <ul className="space-y-4">
-                {d.byType.map((t) => {
-                  const pct = d.month ? (t.amount / d.month) * 100 : 0;
+                {d.byType.map((row) => {
+                  const pct = d.month ? (row.amount / d.month) * 100 : 0;
                   return (
-                    <li key={t.type}>
+                    <li key={row.type}>
                       <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium text-slate-700">{t.type}</span>
-                        <span className="tabular font-semibold text-slate-900">{formatMoney(t.amount)}</span>
+                        <span className="font-medium text-slate-700">{t(row.type)}</span>
+                        <span className="tabular font-semibold text-slate-900">{formatMoney(row.amount)}</span>
                       </div>
                       <div className="mt-1.5 h-2 rounded-full bg-accent-100">
                         <div className="h-2 rounded-full bg-accent-600" style={{ width: `${pct}%` }} />
                       </div>
-                      <p className="mt-1 text-xs text-slate-500">{t.count} transactions · {pct.toFixed(0)}%</p>
+                      <p className="mt-1 text-xs text-slate-500">{t("{n} transactions", { n: row.count })} · {pct.toFixed(0)}%</p>
                     </li>
                   );
                 })}
               </ul>
             ) : (
-              <EmptyState title="No commission this month yet" />
+              <EmptyState title={t("No commission this month yet")} />
             )}
           </CardBody>
         </Card>
         <Card>
-          <CardHeader title="Recent commission" />
+          <CardHeader title={t("Recent commission")} />
           <div className="mt-4">
             {d?.recent.length ? (
               <Table>
                 <THead>
-                  <TH>Transaction</TH>
-                  <TH>Service</TH>
-                  <TH align="right">Base amount</TH>
-                  <TH align="right">Commission</TH>
-                  <TH>Date</TH>
+                  <TH>{t("Transaction")}</TH>
+                  <TH>{t("Service")}</TH>
+                  <TH align="right">{t("Base amount")}</TH>
+                  <TH align="right">{t("Commission")}</TH>
+                  <TH>{t("Date")}</TH>
                 </THead>
                 <tbody>
                   {d.recent.map((r) => (
                     <TR key={r.id}>
                       <TD className="tabular font-mono text-xs">{r.trxId}</TD>
-                      <TD>{r.type}</TD>
+                      <TD>{t(r.type)}</TD>
                       <TD align="right" className="tabular">{formatMoney(r.base)}</TD>
                       <TD align="right" className="tabular font-semibold text-emerald-700">+{formatMoney(r.amount)}</TD>
-                      <TD className="whitespace-nowrap text-slate-500">{formatDateTime(r.createdAt)}</TD>
+                      <TD className="whitespace-nowrap text-slate-500">{formatDateTime(r.createdAt, lang)}</TD>
                     </TR>
                   ))}
                 </tbody>
               </Table>
             ) : (
-              <EmptyState title="No commission yet" description="Commission appears here after your first counter transaction." />
+              <EmptyState title={t("No commission yet")} description={t("Commission appears here after your first counter transaction.")} />
             )}
           </div>
         </Card>
@@ -102,12 +104,13 @@ export function AgentCommissionView() {
 /* ───────────── Verification ───────────── */
 
 export function AgentVerificationView() {
+  const { t } = useI18n();
   const profile = useApi(() => api.profile.get(), [], { tags: ["profile"] });
   const p = profile.data;
   if (profile.error && !p) return <ErrorState message={profile.error.message} onRetry={profile.reload} />;
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Business" title="Agent verification" description="Track your application and the documents our team is reviewing." />
+      <PageHeader eyebrow={t("Business")} title={t("Agent verification")} description={t("Track your application and the documents our team is reviewing.")} />
       {!p ? (
         <Skeleton className="h-64 rounded-2xl" />
       ) : (
@@ -119,49 +122,49 @@ export function AgentVerificationView() {
                   <ShieldCheck className="h-5 w-5" aria-hidden />
                 </span>
                 <div>
-                  <p className="text-sm text-slate-500">Current status</p>
+                  <p className="text-sm text-slate-500">{t("Current status")}</p>
                   <AccountStatusBadge status={p.user.status} />
                 </div>
               </div>
-              <p className="tabular text-sm text-slate-500">Agent code {p.agent?.agentCode}</p>
+              <p className="tabular text-sm text-slate-500">{t("Agent code")} {p.agent?.agentCode}</p>
             </div>
             <div className="mt-6">
               <VerificationProgress track="AGENT" status={p.user.status} />
             </div>
             {p.user.status === "REJECTED" && p.reviewNote && (
-              <Alert tone="danger" title="Application not approved" className="mt-5">
-                {p.reviewNote}
+              <Alert tone="danger" title={t("Application not approved")} className="mt-5">
+                {t(p.reviewNote)}
               </Alert>
             )}
             {p.user.status === "VERIFIED" && (
               <Alert tone="success" className="mt-5">
-                Your agent account is verified. All counter operations are enabled.
+                {t("Your agent account is verified. All counter operations are enabled.")}
               </Alert>
             )}
           </Card>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
             <Card>
-              <CardHeader title="Submitted documents" description="Reviewed by an administrator" />
+              <CardHeader title={t("Submitted documents")} description={t("Reviewed by an administrator")} />
               <CardBody>
                 <DocumentList documents={p.documents} />
               </CardBody>
             </Card>
             <div className="space-y-6">
               <Card>
-                <CardHeader title="Outlet" />
+                <CardHeader title={t("Outlet")} />
                 <CardBody>
                   <DescriptionList
                     items={[
-                      { label: "Outlet", value: p.agent?.outletName ?? "—" },
-                      { label: "Address", value: p.agent?.businessAddress ?? "—" },
-                      { label: "NID", value: p.nidMasked ?? "—" },
-                      { label: "Emergency contact", value: p.agent ? `${p.agent.emergencyContact.name} · ${p.agent.emergencyContact.phone}` : "—" },
+                      { label: t("Outlet"), value: p.agent?.outletName ?? "—" },
+                      { label: t("Address"), value: p.agent?.businessAddress ?? "—" },
+                      { label: t("NID"), value: p.nidMasked ?? "—" },
+                      { label: t("Emergency contact"), value: p.agent ? `${p.agent.emergencyContact.name} · ${p.agent.emergencyContact.phone}` : "—" },
                     ]}
                   />
                 </CardBody>
               </Card>
               <Card>
-                <CardHeader title="Status history" />
+                <CardHeader title={t("Status history")} />
                 <CardBody>
                   <StatusTimeline events={p.timeline} />
                 </CardBody>

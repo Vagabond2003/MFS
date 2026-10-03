@@ -11,6 +11,7 @@ A Mobile Financial Services web app with three isolated customer roles — **Per
 Requirements: Node.js 20.9+ (tested on Node 25), npm, a Supabase project.
 
 1. In the Supabase **SQL Editor**, run `supabase/schema.sql`, then `supabase/seed.sql` (once each — re-running `schema.sql` deletes all data).
+   A database created before a change in `supabase/migrations/` needs that file run once instead (e.g. `20261003_user_language.sql` adds each user's interface language).
 2. `npm install`
 3. `cp .env.example .env.local`, then fill in:
    - `DATABASE_URL` — Supabase → **Connect** → **Direct** → Method **Transaction pooler** (port 6543), with your database password.
@@ -191,6 +192,15 @@ Request and response shapes are the TypeScript types in `src/services/contracts.
 ### Data model the backend should provide
 
 `services/mock/schema.ts` mirrors the relational schema. Tables: `users` (role enum `PERSONAL | AGENT | MERCHANT | ADMIN`), `personal_profiles`, `agent_profiles`, `merchant_profiles`, `merchant_businesses`, `account_status_history`, `verification_documents`, `wallets` (with an optimistic-lock `version`), `transactions` + `transaction_parties`, `commissions`, `settlements` (settlement transactions), `notifications`, `otp_codes` (hashed codes bound to a context), `sessions`, `audit_logs` (append-only), `disputes`, `payment_requests`, `rate_limits` and `idempotency_keys`.
+
+## Languages (English / বাংলা)
+
+* **Toggle** in every header (landing, sign-in, registration and all four app shells), plus a **Language** card under Profile → Profile. Signed-in users get the choice saved to their account (`users.language`), so it follows them to every device; visitors keep it in the `kosh_lang` cookie.
+* **Registration:** each sign-up form starts with a *Preferred language* choice (defaults to the language being browsed); the new account is created with it.
+* **How text is translated:** components call `t("English text")` from `useI18n()` (Server Components use `getT()` from `lib/i18n/server`). The English text is the key; Bengali lives in `src/lib/i18n/dict/`. A missing entry falls back to English.
+* **Server text** (API errors, validation messages, notifications, transaction descriptions) stays English in the database and API; the API route translates errors for the caller, and stored text is translated when shown. Messages with values (amounts, names, IDs) match the patterns in `dict/bn-patterns.ts`.
+* **Coverage check:** `node scripts/check-i18n.mjs` lists any user-facing English string without a Bengali entry. Run it after adding UI text.
+* Amounts, phone numbers and IDs keep Latin digits; dates use Bengali month and day names.
 
 ## Design notes
 

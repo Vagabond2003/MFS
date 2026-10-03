@@ -10,9 +10,11 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { TXN_META } from "@/components/transactions/meta";
 import { useApi } from "@/hooks/use-api";
 import { api } from "@/services";
+import { useI18n } from "@/hooks/use-i18n";
 import { formatCount, formatMoney, formatRelative } from "@/lib/utils";
 
 export function AdminOverview() {
+  const { t, lang } = useI18n();
   const stats = useApi(() => api.admin.stats(), [], { tags: ["admin"], pollMs: 30_000 });
   const queue = useApi(() => api.admin.verificationQueue({ role: "ALL" }), [], { tags: ["admin"] });
   const audit = useApi(() => api.admin.auditLogs({ page: 1, pageSize: 8 }), [], { tags: ["admin"] });
@@ -22,28 +24,28 @@ export function AdminOverview() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Admin" title="System overview" description="Platform health, pending reviews and recent activity." />
+      <PageHeader eyebrow={t("Admin")} title={t("System overview")} description={t("Platform health, pending reviews and recent activity.")} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Total customers" value={s ? formatCount(s.users.total) : "—"} icon={<Users className="h-4 w-4" />} hint={s ? `${s.users.suspended} suspended` : undefined} />
-        <StatTile label="Pending verifications" value={s ? String(s.pendingVerifications.agents + s.pendingVerifications.merchants) : "—"} icon={<BadgeCheck className="h-4 w-4" />} hint={s ? `${s.pendingVerifications.agents} agents · ${s.pendingVerifications.merchants} merchants` : undefined} />
-        <StatTile label="Today's volume" value={s ? formatMoney(s.today.volume) : "—"} icon={<TrendingUp className="h-4 w-4" />} hint={s ? `${formatCount(s.today.count)} transactions · ${s.today.failed} failed` : undefined} />
-        <StatTile label="Open disputes" value={s ? String(s.openDisputes) : "—"} icon={<Gavel className="h-4 w-4" />} hint="Open or investigating" />
+        <StatTile label={t("Total customers")} value={s ? formatCount(s.users.total) : "—"} icon={<Users className="h-4 w-4" />} hint={s ? t("{n} suspended", { n: s.users.suspended }) : undefined} />
+        <StatTile label={t("Pending verifications")} value={s ? String(s.pendingVerifications.agents + s.pendingVerifications.merchants) : "—"} icon={<BadgeCheck className="h-4 w-4" />} hint={s ? t("{agents} agents · {merchants} merchants", { agents: s.pendingVerifications.agents, merchants: s.pendingVerifications.merchants }) : undefined} />
+        <StatTile label={t("Today's volume")} value={s ? formatMoney(s.today.volume) : "—"} icon={<TrendingUp className="h-4 w-4" />} hint={s ? t("{n} transactions · {failed} failed", { n: formatCount(s.today.count), failed: s.today.failed }) : undefined} />
+        <StatTile label={t("Open disputes")} value={s ? String(s.openDisputes) : "—"} icon={<Gavel className="h-4 w-4" />} hint={t("Open or investigating")} />
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatTile label="Personal" value={s ? String(s.users.personal) : "—"} icon={<UserRound className="h-4 w-4" />} />
-        <StatTile label="Agents" value={s ? String(s.users.agents) : "—"} icon={<BriefcaseBusiness className="h-4 w-4" />} />
-        <StatTile label="Merchants" value={s ? String(s.users.merchants) : "—"} icon={<Store className="h-4 w-4" />} />
-        <StatTile label="Month volume" value={s ? formatMoney(s.month.volume, { whole: true }) : "—"} icon={<Receipt className="h-4 w-4" />} />
-        <StatTile label="Fees today" value={s ? formatMoney(s.today.fees) : "—"} icon={<Coins className="h-4 w-4" />} className="col-span-2 lg:col-span-1" />
+        <StatTile label={t("Personal")} value={s ? String(s.users.personal) : "—"} icon={<UserRound className="h-4 w-4" />} />
+        <StatTile label={t("Agents")} value={s ? String(s.users.agents) : "—"} icon={<BriefcaseBusiness className="h-4 w-4" />} />
+        <StatTile label={t("Merchants")} value={s ? String(s.users.merchants) : "—"} icon={<Store className="h-4 w-4" />} />
+        <StatTile label={t("Month volume")} value={s ? formatMoney(s.month.volume, { whole: true }) : "—"} icon={<Receipt className="h-4 w-4" />} />
+        <StatTile label={t("Fees today")} value={s ? formatMoney(s.today.fees) : "—"} icon={<Coins className="h-4 w-4" />} className="col-span-2 lg:col-span-1" />
       </div>
 
       {s ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-          <ChartCard title="Daily transaction volume" description="All successful transactions · last 14 days" xKey="date" data={s.daily} series={[{ key: "volume", label: "Volume" }]} refreshing={stats.refreshing}>
-            <ColumnChart data={s.daily} xKey="date" series={[{ key: "volume", label: "Volume" }]} />
+          <ChartCard title={t("Daily transaction volume")} description={t("All successful transactions · last 14 days")} xKey="date" data={s.daily} series={[{ key: "volume", label: t("Volume") }]} refreshing={stats.refreshing}>
+            <ColumnChart data={s.daily} xKey="date" series={[{ key: "volume", label: t("Volume") }]} />
           </ChartCard>
-          <DonutCard title="Volume by type" description="Last 30 days" centerLabel="volume" data={s.byType.map((t) => ({ label: TXN_META[t.type].label, value: t.volume }))} />
+          <DonutCard title={t("Volume by type")} description={t("Last 30 days")} centerLabel={t("volume")} data={s.byType.map((row) => ({ label: TXN_META[row.type].label, value: row.volume }))} />
         </div>
       ) : (
         <Skeleton className="h-80 rounded-2xl" />
@@ -52,11 +54,11 @@ export function AdminOverview() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader
-            title="Verification queue"
-            description="Agent & merchant applications awaiting a decision"
+            title={t("Verification queue")}
+            description={t("Agent & merchant applications awaiting a decision")}
             action={
               <Link href="/admin/verifications" className="inline-flex items-center gap-1 text-sm font-semibold text-accent-700 hover:underline">
-                Review <ArrowRight className="h-4 w-4" aria-hidden />
+                {t("Review")} <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>
             }
           />
@@ -72,7 +74,7 @@ export function AdminOverview() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-slate-900">{a.businessName ?? a.applicantName}</p>
                         <p className="text-xs text-slate-500">
-                          {a.role === "AGENT" ? "Agent" : "Merchant"} · {a.applicantName} · submitted {formatRelative(a.submittedAt)}
+                          {a.role === "AGENT" ? t("Agent") : t("Merchant")} · {a.applicantName} · {t("submitted {when}", { when: formatRelative(a.submittedAt, lang) })}
                         </p>
                       </div>
                       <AccountStatusBadge status={a.status} />
@@ -81,16 +83,16 @@ export function AdminOverview() {
                 ))}
               </ul>
             ) : (
-              <EmptyState icon={<BadgeCheck className="h-6 w-6" />} title="Queue is clear" description="No applications are waiting for review." />
+              <EmptyState icon={<BadgeCheck className="h-6 w-6" />} title={t("Queue is clear")} description={t("No applications are waiting for review.")} />
             )}
           </div>
         </Card>
         <Card>
           <CardHeader
-            title="Recent audit events"
+            title={t("Recent audit events")}
             action={
               <Link href="/admin/audit-logs" className="inline-flex items-center gap-1 text-sm font-semibold text-accent-700 hover:underline">
-                All logs <ArrowRight className="h-4 w-4" aria-hidden />
+                {t("All logs")} <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>
             }
           />
@@ -104,7 +106,7 @@ export function AdminOverview() {
                   <p className="truncate font-mono text-xs font-semibold text-slate-800">{e.action}</p>
                   <p className="truncate text-xs text-slate-500">{e.actor.name}</p>
                 </div>
-                <span className="shrink-0 text-xs text-slate-400">{formatRelative(e.createdAt)}</span>
+                <span className="shrink-0 text-xs text-slate-400">{formatRelative(e.createdAt, lang)}</span>
               </li>
             ))}
           </ul>

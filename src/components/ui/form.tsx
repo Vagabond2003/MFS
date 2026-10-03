@@ -4,6 +4,7 @@ import { forwardRef, useId, useState } from "react";
 import { ChevronDown, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { passwordStrength } from "@/lib/validation";
+import { useI18n } from "@/hooks/use-i18n";
 
 const control =
   "block w-full rounded-xl border border-slate-200 bg-white px-3.5 text-[15px] text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-accent-500 focus:ring-4 focus:ring-accent-500/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 aria-[invalid=true]:border-rose-400 aria-[invalid=true]:focus:ring-rose-500/15";
@@ -20,6 +21,7 @@ interface FieldProps {
 
 /** Label + control + hint/error with correct aria wiring. */
 export function Field({ label, hint, error, required, optional, className, children }: FieldProps) {
+  const { t } = useI18n();
   const id = useId();
   const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
   return (
@@ -28,13 +30,14 @@ export function Field({ label, hint, error, required, optional, className, child
         <label htmlFor={id} className="flex items-center gap-1 text-sm font-medium text-slate-700">
           {label}
           {required && <span className="text-rose-500" aria-hidden>*</span>}
-          {optional && <span className="font-normal text-slate-400">(optional)</span>}
+          {optional && <span className="font-normal text-slate-400">{t("(optional)")}</span>}
         </label>
       )}
       {children({ id, "aria-invalid": !!error, "aria-describedby": describedBy })}
       {error ? (
         <p id={`${id}-error`} className="text-[13px] font-medium text-rose-600" role="alert">
-          {error}
+          {/* Validation messages come from the shared English schemas. */}
+          {t(error)}
         </p>
       ) : hint ? (
         <p id={`${id}-hint`} className="text-[13px] text-slate-500">
@@ -82,6 +85,7 @@ export const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<H
 /** `strengthOf`: pass the current value (e.g. from RHF `watch`) to show a strength meter. */
 export const PasswordInput = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement> & { strengthOf?: string }>(
   function PasswordInput({ strengthOf, className, ...props }, ref) {
+    const { t } = useI18n();
     const [visible, setVisible] = useState(false);
     const value = strengthOf ?? "";
     const strength = passwordStrength(value);
@@ -93,7 +97,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, React.InputHTMLAttribu
             type="button"
             onClick={() => setVisible((v) => !v)}
             className="absolute inset-y-0 right-1.5 my-auto grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-            aria-label={visible ? "Hide password" : "Show password"}
+            aria-label={visible ? t("Hide password") : t("Show password")}
             aria-pressed={visible}
           >
             {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -112,7 +116,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, React.InputHTMLAttribu
                 />
               ))}
             </div>
-            <span className="w-16 text-right text-xs font-medium text-slate-500">{strength.label}</span>
+            <span className="w-16 text-right text-xs font-medium text-slate-500">{t(strength.label)}</span>
           </div>
         )}
       </div>

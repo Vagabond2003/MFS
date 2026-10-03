@@ -27,6 +27,8 @@ import { TransactionDetail } from "@/components/transactions/transaction-detail"
 import { TransactionTable } from "@/components/transactions/transaction-table";
 import { useApi } from "@/hooks/use-api";
 import { useCurrentUser } from "@/hooks/use-auth";
+import { useI18n } from "@/hooks/use-i18n";
+import { msg } from "@/lib/i18n/core";
 import { api } from "@/services";
 import { cn, formatCount, formatMoney } from "@/lib/utils";
 import { useState } from "react";
@@ -34,15 +36,16 @@ import type { TransactionView } from "@/types/domain";
 import { VerificationProgress } from "../shared/verification";
 
 const ACTIONS = [
-  { href: "/dashboard/merchant/receive", label: "Receive Payment", icon: Wallet, needsVerified: true },
-  { href: "/dashboard/merchant/qr", label: "Generate QR", icon: QrCode, needsVerified: true },
-  { href: "/transactions", label: "Payment History", icon: FileClock, needsVerified: false },
-  { href: "/dashboard/merchant/refunds", label: "Refund", icon: RotateCcw, needsVerified: true },
-  { href: "/dashboard/merchant/settlement", label: "Settlement", icon: Landmark, needsVerified: true },
-  { href: "/dashboard/merchant/business", label: "Business Profile", icon: Building, needsVerified: false },
+  { href: "/dashboard/merchant/receive", label: msg("Receive Payment"), icon: Wallet, needsVerified: true },
+  { href: "/dashboard/merchant/qr", label: msg("Generate QR"), icon: QrCode, needsVerified: true },
+  { href: "/transactions", label: msg("Payment History"), icon: FileClock, needsVerified: false },
+  { href: "/dashboard/merchant/refunds", label: msg("Refund"), icon: RotateCcw, needsVerified: true },
+  { href: "/dashboard/merchant/settlement", label: msg("Settlement"), icon: Landmark, needsVerified: true },
+  { href: "/dashboard/merchant/business", label: msg("Business Profile"), icon: Building, needsVerified: false },
 ];
 
 export function MerchantDashboardView() {
+  const { t } = useI18n();
   const user = useCurrentUser();
   const dash = useApi(() => api.merchant.dashboard(), [], { tags: ["dashboard", "wallet", "transactions"], pollMs: 30_000 });
   const [selected, setSelected] = useState<TransactionView | null>(null);
@@ -55,13 +58,13 @@ export function MerchantDashboardView() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-accent-700">Business overview</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-accent-700">{t("Business overview")}</p>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-[28px]">{user.businessName}</h1>
-          <p className="tabular text-sm text-slate-500">Merchant ID {user.merchantId}</p>
+          <p className="tabular text-sm text-slate-500">{t("Merchant ID")} {user.merchantId}</p>
         </div>
         {verified && (
           <ButtonLink href="/dashboard/merchant/receive" size="lg" className="sm:hidden">
-            <Wallet className="h-4 w-4" aria-hidden /> Receive payment
+            <Wallet className="h-4 w-4" aria-hidden /> {t("Receive payment")}
           </ButtonLink>
         )}
       </div>
@@ -74,16 +77,16 @@ export function MerchantDashboardView() {
                 <LockKeyhole className="h-5 w-5" aria-hidden />
               </span>
               <div>
-                <h2 className="font-semibold text-slate-900">Merchant payments are not enabled yet</h2>
+                <h2 className="font-semibold text-slate-900">{t("Merchant payments are not enabled yet")}</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Customers can&apos;t pay {user.businessName} until your business documents are verified. QR codes, refunds and settlements unlock after approval.
+                  {t("Customers can't pay {business} until your business documents are verified. QR codes, refunds and settlements unlock after approval.", { business: user.businessName ?? "" })}
                 </p>
               </div>
             </div>
             <div className="w-full lg:w-[380px]">
               <VerificationProgress track="MERCHANT" status={user.status} />
               <ButtonLink href="/dashboard/merchant/business" variant="outline" size="sm" className="mt-4">
-                View verification
+                {t("View verification")}
               </ButtonLink>
             </div>
           </div>
@@ -92,10 +95,10 @@ export function MerchantDashboardView() {
 
       {/* Business overview */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatTile label="Current balance" value={d ? formatMoney(d.wallet.available) : "—"} icon={<Wallet className="h-4 w-4" />} hint={d && d.wallet.pending > 0 ? `${formatMoney(d.wallet.pending)} settling` : "Available to settle"} />
-        <StatTile label="Today's sales" value={d ? formatMoney(d.today.revenue) : "—"} icon={<ShoppingBag className="h-4 w-4" />} hint={d ? `${d.today.successful} successful payments` : undefined} />
-        <StatTile label="Monthly sales" value={d ? formatMoney(d.month.revenue) : "—"} icon={<TrendingUp className="h-4 w-4" />} hint={d ? `${formatCount(d.month.count)} payments this month` : undefined} />
-        <StatTile label="Pending payments" value={d ? formatMoney(d.pendingPayments) : "—"} icon={<Hourglass className="h-4 w-4" />} hint="Online checkout, clears next day" />
+        <StatTile label={t("Current balance")} value={d ? formatMoney(d.wallet.available) : "—"} icon={<Wallet className="h-4 w-4" />} hint={d && d.wallet.pending > 0 ? t("{amount} settling", { amount: formatMoney(d.wallet.pending) }) : t("Available to settle")} />
+        <StatTile label={t("Today's sales")} value={d ? formatMoney(d.today.revenue) : "—"} icon={<ShoppingBag className="h-4 w-4" />} hint={d ? t("{n} successful payments", { n: d.today.successful }) : undefined} />
+        <StatTile label={t("Monthly sales")} value={d ? formatMoney(d.month.revenue) : "—"} icon={<TrendingUp className="h-4 w-4" />} hint={d ? t("{n} payments this month", { n: formatCount(d.month.count) }) : undefined} />
+        <StatTile label={t("Pending payments")} value={d ? formatMoney(d.pendingPayments) : "—"} icon={<Hourglass className="h-4 w-4" />} hint={t("Online checkout, clears next day")} />
       </div>
 
       {/* Quick actions */}
@@ -112,9 +115,9 @@ export function MerchantDashboardView() {
                 >
                   <span className="relative grid h-11 w-11 place-items-center rounded-xl bg-accent-600 text-accent-fg">
                     <Icon className="h-5 w-5" aria-hidden />
-                    {disabled && <LockKeyhole className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-white p-0.5 text-slate-500" aria-label="Locked" />}
+                    {disabled && <LockKeyhole className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-white p-0.5 text-slate-500" aria-label={t("Locked")} />}
                   </span>
-                  <span className="text-xs font-semibold text-slate-700">{label}</span>
+                  <span className="text-xs font-semibold text-slate-700">{t(label)}</span>
                 </Link>
               </li>
             );
@@ -125,14 +128,14 @@ export function MerchantDashboardView() {
       {/* Daily & monthly statistics */}
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>
-          <CardHeader title="Today" description="Daily statistics" />
+          <CardHeader title={t("Today")} description={t("Daily statistics")} />
           <dl className="mt-4 grid grid-cols-2 border-t border-slate-100 sm:grid-cols-5">
             {[
-              { l: "Today's revenue", v: d ? formatMoney(d.today.revenue) : "—", icon: TrendingUp },
-              { l: "Orders", v: d ? String(d.today.orders) : "—", icon: ReceiptText },
-              { l: "Successful", v: d ? String(d.today.successful) : "—", icon: CircleCheck },
-              { l: "Failed", v: d ? String(d.today.failed) : "—", icon: CircleX },
-              { l: "Refunds", v: d ? formatMoney(d.today.refunds) : "—", icon: RotateCcw },
+              { l: t("Today's revenue"), v: d ? formatMoney(d.today.revenue) : "—", icon: TrendingUp },
+              { l: t("Orders"), v: d ? String(d.today.orders) : "—", icon: ReceiptText },
+              { l: t("Successful"), v: d ? String(d.today.successful) : "—", icon: CircleCheck },
+              { l: t("Failed"), v: d ? String(d.today.failed) : "—", icon: CircleX },
+              { l: t("Refunds"), v: d ? formatMoney(d.today.refunds) : "—", icon: RotateCcw },
             ].map(({ l, v, icon: Icon }, i) => (
               <div key={l} className={cn("px-5 py-4", i > 0 && "sm:border-l", "border-slate-100", i >= 2 && "border-t sm:border-t-0")}>
                 <dt className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
@@ -144,13 +147,13 @@ export function MerchantDashboardView() {
           </dl>
         </Card>
         <Card>
-          <CardHeader title="This month" description="Monthly statistics" />
+          <CardHeader title={t("This month")} description={t("Monthly statistics")} />
           <dl className="mt-4 grid grid-cols-2 border-t border-slate-100 sm:grid-cols-4">
             {[
-              { l: "Monthly revenue", v: d ? formatMoney(d.month.revenue) : "—" },
-              { l: "Monthly expenses", v: d ? formatMoney(d.month.expenses) : "—", hint: "Service fees + refunds" },
-              { l: "Net revenue", v: d ? formatMoney(d.month.net) : "—", strong: true },
-              { l: "Transaction count", v: d ? formatCount(d.month.count) : "—" },
+              { l: t("Monthly revenue"), v: d ? formatMoney(d.month.revenue) : "—" },
+              { l: t("Monthly expenses"), v: d ? formatMoney(d.month.expenses) : "—", hint: t("Service fees + refunds") },
+              { l: t("Net revenue"), v: d ? formatMoney(d.month.net) : "—", strong: true },
+              { l: t("Transaction count"), v: d ? formatCount(d.month.count) : "—" },
             ].map(({ l, v, hint, strong }, i) => (
               <div key={l} className={cn("px-5 py-4 border-slate-100", i > 0 && "sm:border-l", i >= 2 && "border-t sm:border-t-0")}>
                 <dt className="text-xs font-medium text-slate-500">{l}</dt>
@@ -165,19 +168,19 @@ export function MerchantDashboardView() {
       {/* Analytics */}
       {d ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-          <ChartCard title="Daily sales" description="Last 14 days" xKey="date" data={d.daily} series={[{ key: "sales", label: "Sales" }]} refreshing={dash.refreshing}
-            action={<Link href="/dashboard/merchant/sales" className="mr-1 text-xs font-semibold text-accent-700 hover:underline">Full analytics</Link>}
+          <ChartCard title={t("Daily sales")} description={t("Last 14 days")} xKey="date" data={d.daily} series={[{ key: "sales", label: t("Sales") }]} refreshing={dash.refreshing}
+            action={<Link href="/dashboard/merchant/sales" className="mr-1 text-xs font-semibold text-accent-700 hover:underline">{t("Full analytics")}</Link>}
           >
-            <ColumnChart data={d.daily} xKey="date" series={[{ key: "sales", label: "Sales" }]} />
+            <ColumnChart data={d.daily} xKey="date" series={[{ key: "sales", label: t("Sales") }]} />
           </ChartCard>
           <DonutCard
-            title="Payment methods"
-            description="Last 30 days"
-            centerLabel="received"
+            title={t("Payment methods")}
+            description={t("Last 30 days")}
+            centerLabel={t("received")}
             data={d.paymentMethods.map((m) => ({ label: PAYMENT_METHOD_LABEL[m.method], value: m.amount }))}
           />
-          <ChartCard className="lg:col-span-2" title="Monthly revenue & refunds" description="Last 6 months" xKey="month" data={d.monthly} series={[{ key: "revenue", label: "Revenue" }, { key: "refunds", label: "Refunds" }]} refreshing={dash.refreshing}>
-            <ColumnChart data={d.monthly} xKey="month" series={[{ key: "revenue", label: "Revenue" }, { key: "refunds", label: "Refunds" }]} />
+          <ChartCard className="lg:col-span-2" title={t("Monthly revenue & refunds")} description={t("Last 6 months")} xKey="month" data={d.monthly} series={[{ key: "revenue", label: t("Revenue") }, { key: "refunds", label: t("Refunds") }]} refreshing={dash.refreshing}>
+            <ColumnChart data={d.monthly} xKey="month" series={[{ key: "revenue", label: t("Revenue") }, { key: "refunds", label: t("Refunds") }]} />
           </ChartCard>
         </div>
       ) : (
@@ -189,10 +192,10 @@ export function MerchantDashboardView() {
 
       <Card>
         <CardHeader
-          title="Recent payments"
+          title={t("Recent payments")}
           action={
             <Link href="/transactions" className="inline-flex items-center gap-1 text-sm font-semibold text-accent-700 hover:underline">
-              All payments <ArrowRight className="h-4 w-4" aria-hidden />
+              {t("All payments")} <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           }
         />
@@ -202,7 +205,7 @@ export function MerchantDashboardView() {
             variant="merchant"
             loading={dash.loading}
             onSelect={setSelected}
-            emptyState={<EmptyState icon={<QrCode className="h-6 w-6" />} title="No payments yet" description={verified ? "Show your QR code to customers to receive your first payment." : "Payments will appear here once your business is verified."} />}
+            emptyState={<EmptyState icon={<QrCode className="h-6 w-6" />} title={t("No payments yet")} description={verified ? t("Show your QR code to customers to receive your first payment.") : t("Payments will appear here once your business is verified.")} />}
           />
         </div>
       </Card>

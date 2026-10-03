@@ -9,6 +9,8 @@ import { PageHeader } from "@/components/ui/card";
 import { AmountInput, ChoiceChips, Field, PhoneInput } from "@/components/ui/form";
 import { TransactionFlow, type FlowFormContext } from "@/components/flows/transaction-flow";
 import { useCurrentUser } from "@/hooks/use-auth";
+import { useI18n } from "@/hooks/use-i18n";
+import { accountStatusLabel } from "@/components/ui/badge";
 import { formatMoney, toMinor } from "@/lib/utils";
 import { phoneSchema, takaAmountSchema } from "@/lib/validation";
 import type { Operator } from "@/types/domain";
@@ -18,16 +20,17 @@ import { DemoHint, InfoCard, QuickAmounts } from "../shared/flow-aside";
 const DONE = "/dashboard/agent";
 
 function useLockMessage() {
+  const { t } = useI18n();
   const user = useCurrentUser();
   if (user.status === "VERIFIED") return undefined;
   return (
     <>
-      <p className="font-semibold text-slate-900">Available after verification</p>
+      <p className="font-semibold text-slate-900">{t("Available after verification")}</p>
       <p className="mt-1">
-        Your agent account is <strong>{user.status.replace(/_/g, " ").toLowerCase()}</strong>. Counter operations are enabled once an administrator approves your application.
+        {t("Your agent account status:")} <strong>{t(accountStatusLabel(user.status))}</strong>. {t("Counter operations are enabled once an administrator approves your application.")}
       </p>
       <Link href="/dashboard/agent/verification" className="mt-3 inline-block font-semibold text-accent-700 hover:underline">
-        View application status →
+        {t("View application status →")}
       </Link>
     </>
   );
@@ -38,41 +41,43 @@ function useLockMessage() {
 const cashSchema = (max: number) => z.object({ customer: phoneSchema, amount: takaAmountSchema(50, max) });
 
 function CustomerCashForm({ submit, busy, kind }: FlowFormContext & { kind: "AGENT_CASH_IN" | "AGENT_CASH_OUT" }) {
+  const { t } = useI18n();
   const schema = cashSchema(kind === "AGENT_CASH_IN" ? 30_000 : 25_000);
   const form = useForm({ resolver: zodResolver(schema), defaultValues: { customer: "", amount: "" } });
   const { errors } = form.formState;
   return (
     <form className="space-y-5" noValidate onSubmit={form.handleSubmit((v) => submit({ kind, customer: v.customer, amount: toMinor(v.amount) }))}>
-      <Field label="Customer mobile number" required error={errors.customer?.message} hint="The customer's personal Kosh wallet">
+      <Field label={t("Customer mobile number")} required error={errors.customer?.message} hint={t("The customer's personal Kosh wallet")}>
         {(p) => <PhoneInput {...p} {...form.register("customer")} />}
       </Field>
-      <Field label={kind === "AGENT_CASH_IN" ? "Cash received from customer" : "Cash to hand over"} required error={errors.amount?.message}>
+      <Field label={kind === "AGENT_CASH_IN" ? t("Cash received from customer") : t("Cash to hand over")} required error={errors.amount?.message}>
         {(p) => <AmountInput {...p} {...form.register("amount")} />}
       </Field>
       <QuickAmounts values={[500, 1000, 2000, 5000, 10000]} onPick={(v) => form.setValue("amount", String(v), { shouldValidate: true })} />
       <Button type="submit" size="lg" fullWidth loading={busy}>
-        Continue
+        {t("Continue")}
       </Button>
     </form>
   );
 }
 
 export function AgentCashInView() {
+  const { t } = useI18n();
   const locked = useLockMessage();
   return (
     <>
-      <PageHeader eyebrow="Counter" title="Cash In" description="Customer gives you cash; you send e-money to their wallet." />
+      <PageHeader eyebrow={t("Counter")} title={t("Cash In")} description={t("Customer gives you cash; you send e-money to their wallet.")} />
       <TransactionFlow
         locked={locked}
         doneHref={DONE}
-        pinLabel="Enter your agent PIN"
-        confirmLabel={(q) => `Cash in ${formatMoney(q.amount)}`}
+        pinLabel={t("Enter your agent PIN")}
+        confirmLabel={(q) => t("Cash in {amount}", { amount: formatMoney(q.amount) })}
         renderForm={(ctx) => <CustomerCashForm {...ctx} kind="AGENT_CASH_IN" />}
         aside={
           <>
-            <InfoCard title="Cash In" items={[{ label: "Customer fee", value: "Free" }, { label: "Your commission", value: "0.20%" }, { label: "Per transaction", value: "Up to ৳30,000" }]} />
+            <InfoCard title={t("Cash In")} items={[{ label: t("Customer fee"), value: t("Free") }, { label: t("Your commission"), value: "0.20%" }, { label: t("Per transaction"), value: t("Up to ৳30,000") }]} />
             <DemoHint>
-              <p>Customer: <b>01700000001</b> (Ashraful Islam), or any personal account you register.</p>
+              <p>{t("Customer:")} <b>01700000001</b> {t("(Ashraful Islam), or any personal account you register.")}</p>
             </DemoHint>
           </>
         }
@@ -82,21 +87,22 @@ export function AgentCashInView() {
 }
 
 export function AgentCashOutView() {
+  const { t } = useI18n();
   const locked = useLockMessage();
   return (
     <>
-      <PageHeader eyebrow="Counter" title="Cash Out" description="Customer withdraws cash. They approve with a one-time code sent to their phone." />
+      <PageHeader eyebrow={t("Counter")} title={t("Cash Out")} description={t("Customer withdraws cash. They approve with a one-time code sent to their phone.")} />
       <TransactionFlow
         locked={locked}
         doneHref={DONE}
-        pinLabel="Enter your agent PIN"
-        confirmLabel={(q) => `Pay out ${formatMoney(q.amount)}`}
+        pinLabel={t("Enter your agent PIN")}
+        confirmLabel={(q) => t("Pay out {amount}", { amount: formatMoney(q.amount) })}
         renderForm={(ctx) => <CustomerCashForm {...ctx} kind="AGENT_CASH_OUT" />}
         aside={
           <>
-            <InfoCard title="Cash Out" items={[{ label: "Customer charge", value: "1.85%" }, { label: "Your commission", value: "0.40%" }, { label: "Customer approval", value: "OTP to their phone" }]} />
+            <InfoCard title={t("Cash Out")} items={[{ label: t("Customer charge"), value: "1.85%" }, { label: t("Your commission"), value: "0.40%" }, { label: t("Customer approval"), value: t("OTP to their phone") }]} />
             <DemoHint>
-              <p>The customer&apos;s code appears on screen (mock SMS provider).</p>
+              <p>{t("The customer's code appears on screen (mock SMS provider).")}</p>
             </DemoHint>
           </>
         }
@@ -114,12 +120,13 @@ const rechargeSchema = z.object({
 });
 
 function AgentRechargeForm({ submit, busy }: FlowFormContext) {
+  const { t } = useI18n();
   const form = useForm<z.input<typeof rechargeSchema>, unknown, z.output<typeof rechargeSchema>>({ resolver: zodResolver(rechargeSchema), defaultValues: { number: "", amount: "" } });
   const { errors } = form.formState;
   const operator = form.watch("operator");
   return (
     <form className="space-y-5" noValidate onSubmit={form.handleSubmit((v) => submit({ kind: "AGENT_RECHARGE", number: v.number, operator: v.operator, amount: toMinor(v.amount) }))}>
-      <Field label="Customer mobile number" required error={errors.number?.message}>
+      <Field label={t("Customer mobile number")} required error={errors.number?.message}>
         {(p) => (
           <PhoneInput
             {...p}
@@ -133,33 +140,34 @@ function AgentRechargeForm({ submit, busy }: FlowFormContext) {
         )}
       </Field>
       <div className="space-y-2">
-        <p className="text-sm font-medium text-slate-700">Operator</p>
-        <ChoiceChips<Operator> ariaLabel="Operator" value={operator} onChange={(v) => form.setValue("operator", v, { shouldValidate: true })} options={OPERATORS.map((o) => ({ value: o.value, label: o.label }))} />
-        {errors.operator && <p className="text-[13px] font-medium text-rose-600">{errors.operator.message}</p>}
+        <p className="text-sm font-medium text-slate-700">{t("Operator")}</p>
+        <ChoiceChips<Operator> ariaLabel={t("Operator")} value={operator} onChange={(v) => form.setValue("operator", v, { shouldValidate: true })} options={OPERATORS.map((o) => ({ value: o.value, label: t(o.label) }))} />
+        {errors.operator?.message && <p className="text-[13px] font-medium text-rose-600">{t(errors.operator.message)}</p>}
       </div>
-      <Field label="Amount (collect in cash)" required error={errors.amount?.message}>
+      <Field label={t("Amount (collect in cash)")} required error={errors.amount?.message}>
         {(p) => <AmountInput {...p} {...form.register("amount")} />}
       </Field>
       <QuickAmounts values={[20, 50, 100, 200, 500]} onPick={(v) => form.setValue("amount", String(v), { shouldValidate: true })} />
       <Button type="submit" size="lg" fullWidth loading={busy}>
-        Continue
+        {t("Continue")}
       </Button>
     </form>
   );
 }
 
 export function AgentRechargeView() {
+  const { t } = useI18n();
   const locked = useLockMessage();
   return (
     <>
-      <PageHeader eyebrow="Counter" title="Mobile Recharge" description="Recharge a customer's number and collect the amount in cash." />
+      <PageHeader eyebrow={t("Counter")} title={t("Mobile Recharge")} description={t("Recharge a customer's number and collect the amount in cash.")} />
       <TransactionFlow
         locked={locked}
         doneHref={DONE}
-        pinLabel="Enter your agent PIN"
-        confirmLabel={(q) => `Recharge ${formatMoney(q.amount)}`}
+        pinLabel={t("Enter your agent PIN")}
+        confirmLabel={(q) => t("Recharge {amount}", { amount: formatMoney(q.amount) })}
         renderForm={(ctx) => <AgentRechargeForm {...ctx} />}
-        aside={<InfoCard title="Recharge" items={[{ label: "Your commission", value: "2.50%" }, { label: "Amount", value: "৳20 – ৳1,000" }]} />}
+        aside={<InfoCard title={t("Recharge")} items={[{ label: t("Your commission"), value: "2.50%" }, { label: t("Amount"), value: "৳20 – ৳1,000" }]} />}
       />
     </>
   );
@@ -168,17 +176,18 @@ export function AgentRechargeView() {
 /* ───────────── Customer payment (bills on behalf of walk-ins) ───────────── */
 
 export function AgentCustomerPaymentView() {
+  const { t } = useI18n();
   const locked = useLockMessage();
   return (
     <>
-      <PageHeader eyebrow="Counter" title="Customer Payment" description="Pay a walk-in customer's bill from your e-money and collect cash." />
+      <PageHeader eyebrow={t("Counter")} title={t("Customer Payment")} description={t("Pay a walk-in customer's bill from your e-money and collect cash.")} />
       <TransactionFlow
         locked={locked}
         doneHref={DONE}
-        pinLabel="Enter your agent PIN"
-        confirmLabel={(q) => `Pay ${formatMoney(q.amount)}`}
+        pinLabel={t("Enter your agent PIN")}
+        confirmLabel={(q) => t("Pay {amount}", { amount: formatMoney(q.amount) })}
         renderForm={(ctx) => <BillForm {...ctx} mode="agent" />}
-        aside={<InfoCard title="Customer payment" items={[{ label: "Your commission", value: "0.5% (৳2–৳20)" }, { label: "Receipt", value: "Sent to customer" }]} />}
+        aside={<InfoCard title={t("Customer payment")} items={[{ label: t("Your commission"), value: "0.5% (৳2–৳20)" }, { label: t("Receipt"), value: t("Sent to customer") }]} />}
       />
     </>
   );
