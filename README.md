@@ -147,6 +147,8 @@ supabase/                       schema.sql (fresh database), seed.sql (starting 
 scripts/                        seed-synthetic.mjs, check-i18n.mjs, check-ai.mjs (live model check)
 tests/                          Vitest unit tests (npm test)
 e2e/                            Playwright browser test (npm run test:e2e)
+ml/                             churn model training (Python), reports; npm run ml rebuilds everything
+docs/                           model card, evaluation (all metrics on synthetic data)
 ```
 
 ---
@@ -253,6 +255,12 @@ Request and response shapes are the TypeScript types in `src/services/contracts.
 
 ## Merchant & agent intelligence
 
+**Evidence** (all metrics on synthetic data; Kosh has no real payment history yet):
+* [Model card](docs/model-card.md): the churn model's data, intended use, limits and metrics.
+* [Evaluation](docs/evaluation.md): the churn model against the rule score (ROC-AUC, PR-AUC, top-10% precision and recall, calibration, with confidence intervals), the [fairness check](docs/evaluation.md#2-fairness) by district, category and size, the [AI guard and prompt-injection set](docs/evaluation.md#3-ai-guard-and-prompt-injection), and [admin reviews of flags](docs/evaluation.md#4-admin-reviews-of-flags).
+* Reproduce: `npm run ml` builds the large synthetic dataset (in gitignored `data/`, never a database), the training table, both models, the exported model and the fairness report. Guard statistics on real model replies: `node --env-file=.env.local scripts/check-ai.mjs --live`.
+* **Run `supabase/migrations/20261008_flag_reviews.sql`** in the Supabase SQL Editor to save Confirm / Dismiss decisions. Until then the page shows flags but refuses to save a decision.
+
 Forecasts, benchmarks and risk signals for agents, merchants and the operations team (hackathon Track 05).
 
 **Numbers come from code, words come from the LLM.** Every forecast, score, benchmark and flag is computed by deterministic TypeScript in `src/services/mock/intelligence/`. A language model only turns those figures into a sentence or two. Every screen still works, with template text, when no model is configured or none answers.
@@ -261,13 +269,13 @@ Forecasts, benchmarks and risk signals for agents, merchants and the operations 
 |---|---|---|
 | Agent | Dashboard card · **Liquidity planner** (`/dashboard/agent/liquidity`) | 7-day cash and e-money float projection, shortfall warning, suggested float top-up / extra cash / settlement, day-by-day table, 28-day performance and anonymous standing among agents |
 | Merchant | **Insights** (`/dashboard/merchant/insights`) | 7-day sales forecast (dashed continuation of the actual line, likely-range band), busiest hours and day, payment mix, comparison with similar merchants, 3 recommendations |
-| Admin | **Intelligence** (`/admin/intelligence`) | Merchant churn risk with reasons, agent patterns to review (near-limit cash-outs, repeated customers, off-hours activity, volume spikes), rising performers, service gaps, district coverage ranking |
+| Admin | **Intelligence** (`/admin/intelligence`) | Merchant churn risk from a trained model, with reasons and the model's test metrics; agent patterns to review (near-limit cash-outs, repeated customers, off-hours activity, volume spikes); **Confirm / Dismiss** on every flag (stored and audit-logged); rising performers, service gaps, district coverage ranking |
 
 ### How the figures are made
 
 * **Forecasts** (`forecast.ts`): weekday seasonality, a damped trend and a salary-day (1st–5th of the month) uplift, learned from up to 8 weeks of history; an ~80% band from the residuals. Days and hours are bucketed in Asia/Dhaka.
 * **Liquidity** (`liquidity.ts`): the agent's expected cash-out, cash-in and other cash collected each day, applied to today's real wallet. A day is at risk when a busy day (upper band) would need more than the projected opening cash or float. Suggestions are rounded up to ৳1,000.
-* **Churn** (`churn.ts`): a 0–100 score with fixed weights: days since last payment 35, payment-count drop 25, value drop 20, failure rate 10, refund rate 10. Every score lists its factors.
+* **Churn** (`churn.ts`, `churn-model.ts`): a logistic regression trained in `ml/` gives the chance of no successful payment in the next 30 days, with the features that push it up as reasons. It runs as pure TypeScript (no Python on the server) and is checked against Python's own predictions in the tests. Merchants with under 30 days on Kosh or fewer than 5 payments in 60 days get the original rule score instead (days since last payment 35, payment-count drop 25, value drop 20, failure rate 10, refund rate 10). See the [model card](docs/model-card.md).
 * **Benchmarks** (`benchmark.ts`): last 30 days against merchants with the same category and district (falls back to category, then all merchants). Only medians and percentiles are returned; no peer is ever identified.
 * **Agent patterns** (`anomalies.ts`): each measure is compared with peers and with the agent's own previous 8 weeks. Flags are patterns to review, not verdicts.
 * **Coverage** (`coverage.ts`): distinct customers served per agent and per merchant by district over 30 days, ranked against the network median, with the extra agents needed to reach it.
@@ -276,7 +284,7 @@ Forecasts, benchmarks and risk signals for agents, merchants and the operations 
 
 * `explain(kind, facts, lang)` tries `GEMINI_MODEL` → `GEMINI_FALLBACK_MODEL` → `GROQ_MODEL` within one 18-second budget. Each attempt has its own timeout, and time is held back for the next model. Rate-limited or slow models get a short cool-down. If nothing usable comes back, a deterministic English/Bengali template answers.
 * **Privacy:** models only receive aggregated, pre-formatted figures plus category and district. Never names, phone numbers, NIDs, addresses, agent codes or transaction IDs. `tests/ai.test.ts` checks this against the whole synthetic dataset.
-* **Guard:** a reply is used only if it is JSON of the expected shape (zod), in the requested language, and every number in it appears in the facts (Bengali digits count the same). Otherwise the next model is tried.
+* **Guard:** a reply is used only if it is JSON of the expected shape (zod), in the requested language, every number in it appears in the facts (Bengali digits count the same), and it has no markup, links or mention of PINs, passwords or codes. Place names are reduced to letters before they reach a model, so planted text can't bring its own numbers. Otherwise the next model is tried. A prompt-injection test set and guard statistics: [evaluation § 3](docs/evaluation.md#3-ai-guard-and-prompt-injection).
 * **No path to money:** the model has no tools and its output is display text. Suggested actions and amounts come from code, and links only open the normal screens, where the user still confirms with a PIN.
 * **Cache and limits:** wording is cached per user, insight, language and input hash for the Dhaka day (`ai_insights`). Model calls are limited to 30 per user per hour through `rate_limits`, and run outside any database transaction.
 * **Labelling:** the UI marks model text as **AI-generated** with when it was written. Template text is labelled *Automatic summary*. Text follows the user's saved language.
@@ -398,6 +406,9 @@ npm run test:e2e         # Playwright: one browser test on a throwaway local Pos
 | `tests/intelligence-rules.test.ts` | rule edge cases on hand-built data |
 | `tests/ai.test.ts` | the offline part of `check-ai.mjs`: no identifying data in the facts, the output guard, templates in English and Bengali; and that `explain()` drops a model reply with an invented figure, the wrong language or the wrong shape and uses the template instead |
 | `tests/i18n.test.ts` | every translatable string has a Bengali entry (`check-i18n.mjs`) |
+| `tests/churn-model.test.ts` | the TypeScript churn scorer matches Python's probabilities and reasons (both model kinds); the rule score answers for thin histories |
+| `tests/flag-reviews.test.ts` | Confirm / Dismiss: stored, audit-logged, admin-only, refused without the migration |
+| `tests/ai-guard.test.ts` | the prompt-injection set: hijacked replies rejected for the right reason, known limits documented, planted district names sanitised |
 
 The handler tests use an in-memory store with the same rules as `src/server/db-store.ts`: writes are serialised, the handler changes a copy, ledger invariants are checked, and only then is the copy kept. Time is pinned with fake timers.
 

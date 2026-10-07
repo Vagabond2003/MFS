@@ -4,6 +4,8 @@ import type {
   AgentLiquidityView,
   AgentPerformanceView,
   ChurnRiskView,
+  FlagReview,
+  FlagReviewInput,
   LocationCoverageView,
   MerchantBenchmarkView,
   MerchantDemandView,
@@ -194,6 +196,8 @@ export interface InsightsApi {
   churnRisk(): Promise<ChurnRiskView>;
   /** Admin: agent anomaly flags, rising performers and service gaps. */
   agentIntelligence(): Promise<AgentIntelligenceView>;
+  /** Admin: confirm or dismiss a raised flag (stored and audit-logged). */
+  reviewFlag(input: FlagReviewInput): Promise<FlagReview>;
   /** Admin: districts ranked by how underserved they are. */
   locationCoverage(): Promise<LocationCoverageView>;
 }

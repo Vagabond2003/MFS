@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "ml": "bash ml/reproduce.sh",
+    "fairness": "node --max-old-space-size=8192 scripts/fairness.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.27.0",

@@ -294,6 +294,22 @@ export interface AiInsightRecord {
   createdAt: string;
 }
 
+/** flag_reviews — an administrator's decision on an intelligence flag. Never edited; the latest per flag counts. */
+export interface FlagReviewRecord {
+  id: string;
+  kind: "AGENT_FLAG" | "CHURN";
+  subjectUserId: string;
+  /** Agent flag code (NEAR_LIMIT_CASH_OUTS …) or "CHURN". */
+  code: string;
+  decision: "CONFIRMED" | "DISMISSED";
+  note: string | null;
+  /** The flag's measure (or the churn score) when it was reviewed. */
+  flagValue: number | null;
+  severity: string | null;
+  reviewerId: string | null;
+  createdAt: string;
+}
+
 export interface DbState {
   version: number;
   seededAt: string;
@@ -315,6 +331,8 @@ export interface DbState {
   paymentRequests: PaymentRequestRecord[];
   /** Empty on databases without the intelligence migration. */
   aiInsights: AiInsightRecord[];
+  /** Undefined on a database without the flag_reviews migration: reviews can't be saved there. */
+  flagReviews?: FlagReviewRecord[];
   /** rate_limits: key → fixed-window counter */
   rateLimits: Record<string, { count: number; resetAt: number }>;
   /** idempotency_keys: key → resulting trxId */

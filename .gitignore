@@ -10,6 +10,13 @@
 !.yarn/releases
 !.yarn/versions
 
+# large generated datasets (scripts/generate-large.mjs, scripts/churn-dataset.mjs)
+/data/
+
+# Python (ml/)
+/ml/.venv/
+__pycache__/
+
 # testing
 /coverage
 /test-results/

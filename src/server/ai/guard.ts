@@ -33,14 +33,21 @@ export function extractJson(text: string): unknown {
   return JSON.parse(candidate.slice(start, end + 1));
 }
 
-/** Plain sentence(s): no markup, no links, bounded length. */
+/**
+ * Insight text never needs to mention credentials; a reply that does has been
+ * steered (e.g. by a prompt injection) into asking for them. English and Bengali.
+ */
+export const CREDENTIAL_WORDS = /\b(?:pin|pins|password|passwords|passcode|otp|cvv|one[- ]time (?:code|password))\b|পিন|পাসওয়ার্ড|ওটিপি|গোপন কোড/i;
+
+/** Plain sentence(s): no markup, no links, no credentials, bounded length. */
 const prose = (max: number) =>
   z
     .string()
     .trim()
     .min(8)
     .max(max)
-    .refine((s) => !/[<>`]|https?:\/\/|\*\*/.test(s), "no markup or links");
+    .refine((s) => !/[<>`]|https?:\/\/|www\.|\*\*/.test(s), "no markup or links")
+    .refine((s) => !CREDENTIAL_WORDS.test(s), "no credentials");
 
 export const textOutput = z.object({ text: prose(420) }).strict();
 export const recommendationsOutput = z

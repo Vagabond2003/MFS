@@ -1,5 +1,6 @@
 import type { ZodType } from "zod";
 import { translator, type Lang } from "@/lib/i18n/core";
+import { ZodError } from "zod";
 import { validateReply } from "./guard";
 import { KINDS, schemaFor, type FactsOf, type InsightKind, type OutputOf, type RecommendationFacts } from "./kinds";
 import { available, callModel, configuredModels, coolDown, ModelError, type ModelSpec } from "./providers";
@@ -14,9 +15,36 @@ import { available, callModel, configuredModels, coolDown, ModelError, type Mode
  * deterministic template answers, so every insight works without a model.
  */
 
+/** What happened to one model attempt (for guard statistics: scripts/check-ai.mjs). */
+export interface AttemptLog {
+  model: string;
+  /** accepted: used. rejected: a reply came back but failed the guard. failed: no usable reply (timeout, HTTP error, rate limit). */
+  outcome: "accepted" | "rejected" | "failed";
+  reason: string | null;
+}
+
+/** Why a reply was not used, as a short code. */
+export function rejectionReason(e: unknown): { outcome: "rejected" | "failed"; reason: string } {
+  if (e instanceof ModelError) return { outcome: "failed", reason: e.reason };
+  if (e instanceof ZodError) {
+    const messages = e.issues.map((i) => i.message);
+    if (messages.includes("no credentials")) return { outcome: "rejected", reason: "credentials" };
+    if (messages.includes("no markup or links")) return { outcome: "rejected", reason: "markup_or_link" };
+    return { outcome: "rejected", reason: "wrong_shape" };
+  }
+  const message = e instanceof Error ? e.message : String(e);
+  if (message.startsWith("numbers not in the facts")) return { outcome: "rejected", reason: "invented_number" };
+  if (message.startsWith("expected ")) return { outcome: "rejected", reason: "wrong_item_count" };
+  if (message.includes("wrong language")) return { outcome: "rejected", reason: "wrong_language" };
+  if (e instanceof SyntaxError || message === "no JSON object") return { outcome: "rejected", reason: "not_json" };
+  return { outcome: "rejected", reason: "other" };
+}
+
 export interface Explanation<O> {
   output: O;
   source: "AI" | "TEMPLATE";
+  /** Every model attempt and its outcome. */
+  log: AttemptLog[];
   /** Model that wrote the text; null for the template. */
   model: string | null;
   /** Model calls made (0 when the template answered without trying one). */
@@ -70,9 +98,11 @@ export async function explain<K extends InsightKind>(
 ): Promise<Explanation<OutputOf<K>>> {
   const def = KINDS[kind];
   let attempts = 0;
+  const log: AttemptLog[] = [];
   const template = (): Explanation<OutputOf<K>> => ({
     output: (def.template as (f: FactsOf<K>, t: ReturnType<typeof translator>, l: Lang) => OutputOf<K>)(facts, translator(lang), lang),
     source: "TEMPLATE",
+    log,
     model: null,
     attempts,
   });
@@ -97,9 +127,12 @@ export async function explain<K extends InsightKind>(
       const reply = await callModel(model, system, prompt, budget);
       const output = validateReply(schemaFor(kind) as unknown as ZodType<OutputOf<K>>, reply, facts, expectedItems);
       if ((lang === "bn") !== BENGALI_LETTERS.test(JSON.stringify(output))) throw new Error("reply is in the wrong language");
-      return { output, source: "AI", model: model.id, attempts };
+      log.push({ model: model.id, outcome: "accepted", reason: null });
+      return { output, source: "AI", log, model: model.id, attempts };
     } catch (e) {
-      const reason = e instanceof ModelError ? e.reason : "invalid";
+      const why = rejectionReason(e);
+      log.push({ model: model.id, ...why });
+      const reason = e instanceof ModelError ? e.reason : why.reason;
       // Skip a model for a while after it rate-limits or stalls; a bad reply only costs this request.
       if (reason === "rate-limited") coolDown(model, 60_000);
       else if (reason === "timeout") coolDown(model, 30_000);

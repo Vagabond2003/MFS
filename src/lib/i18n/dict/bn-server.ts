@@ -292,4 +292,12 @@ export const server: Record<string, string> = {
   // Verification document files
   "This file wasn't kept: it was uploaded before document storage was turned on. Ask the applicant to upload it again.": "এই ফাইলটি সংরক্ষিত হয়নি: ডকুমেন্ট সংরক্ষণ চালুর আগে এটি আপলোড করা হয়েছিল। আবেদনকারীকে আবার আপলোড করতে বলুন।",
   "The file could not be saved. Please try again.": "ফাইলটি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
+
+  /* ── Flag reviews ── */
+  "Flag reviews can't be saved until the database migration 20261008_flag_reviews.sql has been run.": "ডাটাবেস মাইগ্রেশন 20261008_flag_reviews.sql চালানো না হওয়া পর্যন্ত ফ্ল্যাগ রিভিউ সংরক্ষণ করা যাবে না।",
+  "Choose confirm or dismiss.": "নিশ্চিত বা বাতিল বেছে নিন।",
+  "Keep the note under 300 characters.": "নোট ৩০০ অক্ষরের মধ্যে রাখুন।",
+  "This flag is no longer raised. Refresh the page.": "এই ফ্ল্যাগ আর সক্রিয় নেই। পেজটি রিফ্রেশ করুন।",
+  "This merchant is no longer flagged. Refresh the page.": "এই মার্চেন্ট আর ফ্ল্যাগ করা নেই। পেজটি রিফ্রেশ করুন।",
+  "Unknown flag type.": "অজানা ফ্ল্যাগের ধরন।",
 };

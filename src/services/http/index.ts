@@ -167,6 +167,7 @@ export const httpApi: ApiClient = {
     recommendations: () => get("/merchant/insights/recommendations"),
     churnRisk: () => get("/admin/insights/churn"),
     agentIntelligence: () => get("/admin/insights/agents"),
+    reviewFlag: (input) => postJson("/admin/insights/flag-reviews", input),
     locationCoverage: () => get("/admin/insights/coverage"),
   },
   lookup: {

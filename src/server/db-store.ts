@@ -69,6 +69,7 @@ const TABLES: TableSpec[] = [
   { key: "rateLimits", table: "rate_limits", pk: "key", map: { keyColumn: "key" } },
   { key: "idempotency", table: "idempotency_keys", pk: "key", map: { keyColumn: "key" } },
   { key: "aiInsights", table: "ai_insights", pk: "id" },
+  { key: "flagReviews", table: "flag_reviews", pk: "id" },
 ];
 
 /**
@@ -81,7 +82,9 @@ const OPTIONAL_COLUMNS: Record<string, string[]> = {
   merchant_businesses: ["district", "area"],
 };
 /** Tables added by later migrations: read as empty and not saved until the migration runs. */
-const OPTIONAL_TABLES = new Set(["ai_insights"]);
+const OPTIONAL_TABLES = new Set(["ai_insights", "flag_reviews"]);
+/** Of those, tables whose absence handlers must see (left undefined) so they can refuse a write that wouldn't be kept. */
+const UNDEFINED_WHEN_MISSING = new Set(["flag_reviews"]);
 const warnedMissing = new Set<string>();
 
 function warnOnce(key: string, message: string) {
@@ -264,6 +267,7 @@ function equal(a: unknown, b: unknown): boolean {
 function recordsOf(spec: TableSpec, db: DbState): Map<string, Row> {
   const out = new Map<string, Row>();
   const collection = db[spec.key] as unknown;
+  if (collection === undefined) return out; // table not migrated yet
   if (spec.map) {
     for (const [k, v] of Object.entries(collection as Record<string, Row>)) out.set(k, v);
   } else {
@@ -291,6 +295,7 @@ async function loadAll(tx: Sql, withVersion: boolean): Promise<{ db: DbState; ve
 
   const db = { version: DB_VERSION, seededAt: new Date().toISOString() } as DbState;
   for (const spec of TABLES) {
+    if (!types.has(spec.table) && UNDEFINED_WHEN_MISSING.has(spec.table)) continue;
     const rows = (data[spec.table] ?? []).map((r) => fromRow(spec, r, types.get(spec.table) ?? new Map()));
     if (spec.map) {
       const keyField = camel(spec.map.keyColumn);
