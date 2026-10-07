@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/services";
 import type { CurrentUser, SessionInfo } from "@/types/domain";
 
@@ -26,29 +26,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     status: "loading",
     session: null,
   });
+  // Bumped by every session change. A session lookup that started before the latest change is
+  // out of date when it answers (e.g. "signed out", asked on page load, answered after a sign-in).
+  const version = useRef(0);
 
-  const refresh = useCallback(
-    () =>
-      api.auth.me().then(
-        (s) => {
-          setState({ status: s ? "authenticated" : "unauthenticated", session: s });
-          return s;
-        },
-        () => {
-          setState({ status: "unauthenticated", session: null });
-          return null;
-        },
-      ),
-    [],
-  );
+  const refresh = useCallback(() => {
+    const asked = version.current;
+    const apply = (s: SessionInfo | null) => {
+      if (asked === version.current) setState({ status: s ? "authenticated" : "unauthenticated", session: s });
+      return s;
+    };
+    return api.auth.me().then(apply, () => apply(null));
+  }, []);
 
   useEffect(() => {
     let alive = true;
-    const load = () =>
-      api.auth.me().then(
-        (s) => alive && setState({ status: s ? "authenticated" : "unauthenticated", session: s }),
-        () => alive && setState({ status: "unauthenticated", session: null }),
-      );
+    const load = () => {
+      const asked = version.current;
+      const apply = (s: SessionInfo | null) => {
+        if (alive && asked === version.current) setState({ status: s ? "authenticated" : "unauthenticated", session: s });
+      };
+      return api.auth.me().then(apply, () => apply(null));
+    };
     void load();
     const onFocus = () => {
       if (document.visibilityState === "visible") void load();
@@ -62,13 +61,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const setSession = useCallback((s: SessionInfo) => setState({ status: "authenticated", session: s }), []);
+  const setSession = useCallback((s: SessionInfo) => {
+    version.current++;
+    setState({ status: "authenticated", session: s });
+  }, []);
 
   const signOut = useCallback(async ({ everywhere = false }: { everywhere?: boolean } = {}) => {
     try {
       if (everywhere) await api.security.logoutAll();
       else await api.auth.logout();
     } finally {
+      version.current++;
       setState({ status: "unauthenticated", session: null });
       // Hard navigation on purpose: it clears all in-memory client state.
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination

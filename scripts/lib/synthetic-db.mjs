@@ -1,16 +1,15 @@
 /**
- * Shared setup for the node sanity checks (no test framework, no database):
+ * Setup for scripts that run the app's code outside the test runner
+ * (scripts/check-ai.mjs --live):
  *   - lets Node import the app's TypeScript directly (type stripping), with a
  *     small resolve hook that maps "@/" and extensionless imports the way the
  *     Next.js bundler does;
  *   - builds an in-memory DbState from the synthetic dataset.
+ * The tests (npm test) don't use this file; Vitest resolves the imports itself.
  */
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
 import { register } from "node:module";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { generateSynthetic, readSynthetic, toDbState } from "./synthetic-state.mjs";
 
 process.removeAllListeners("warning");
 process.on("warning", (w) => w.code !== "MODULE_TYPELESS_PACKAGE_JSON" && console.warn(w.message));
@@ -38,40 +37,12 @@ register(
 export const importSrc = (path) => import(pathToFileURL(fileURLToPath(new URL(path, ROOT))).href);
 
 /**
- * The synthetic dataset as a DbState. Generates it offline unless FILE (written
- * by `seed-synthetic.mjs --emit=FILE`) is given.
+ * The synthetic dataset as a DbState. Generates it offline (history ending now)
+ * unless FILE (written by `seed-synthetic.mjs --emit=FILE`) is given.
  * Returns { db, now, specials }.
  */
 export function loadSyntheticDb(file) {
-  if (!file) {
-    file = join(mkdtempSync(join(tmpdir(), "kosh-intel-")), "synthetic.json");
-    execFileSync(process.execPath, [fileURLToPath(new URL("scripts/seed-synthetic.mjs", ROOT)), "--offline", `--emit=${file}`], { stdio: "inherit" });
-  }
-  const data = JSON.parse(readFileSync(file, "utf8"));
-  const db = {
-    version: 5,
-    seededAt: data.generatedAt,
-    users: [...data.users, ...data.demoRecords.users],
-    personalProfiles: data.personalProfiles,
-    agentProfiles: [...data.agentProfiles, ...data.demoRecords.agentProfiles],
-    merchantProfiles: data.merchantProfiles,
-    merchantBusinesses: [...data.merchantBusinesses, ...data.demoRecords.merchantBusinesses],
-    statusHistory: data.statusHistory,
-    documents: [],
-    wallets: [...data.wallets, ...data.demoRecords.wallets],
-    transactions: data.transactions,
-    commissions: data.commissions,
-    notifications: [],
-    otpCodes: [],
-    sessions: [],
-    auditLogs: [],
-    disputes: [],
-    paymentRequests: [],
-    aiInsights: [],
-    rateLimits: {},
-    idempotency: {},
-  };
-  return { db, now: Date.parse(data.generatedAt), specials: data.specials };
+  return toDbState(file ? readSynthetic(file) : generateSynthetic());
 }
 
 /** Tiny assertion helper: check(name, ok, detail) and summary(). */

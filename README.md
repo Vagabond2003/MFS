@@ -37,7 +37,7 @@ Requirements: Node.js 20.9+ (tested on Node 25), npm, a Supabase project.
 4. *Optional, demo data:* run `supabase/synthetic-data.sql` in the SQL Editor after `seed.sql` — 4 more accounts per role and 90 days of history for every account, as exported on 2026-10-03. For history that ends today instead, run `node --env-file=.env.local scripts/seed-synthetic.mjs` (see [Synthetic data](#synthetic-data)).
 5. `npm run dev` and open http://localhost:3000.
 
-Other scripts: `npm run build`, `npm start`, `npm run lint`, `npm run typecheck`. Checks without a test framework: `node scripts/check-i18n.mjs`, `node scripts/check-intelligence.mjs`, `node scripts/check-ai.mjs`.
+Other scripts: `npm run build`, `npm start`, `npm run lint`, `npm run typecheck`, `npm test` (unit tests, no database) and `npm run test:e2e` (browser test on a throwaway local database). See [Tests](#tests).
 
 ### Starting accounts (from `supabase/seed.sql`)
 
@@ -144,7 +144,9 @@ src/
 └─ types/domain.ts              View types returned by the API
 
 supabase/                       schema.sql (fresh database), seed.sql (starting accounts), migrations/
-scripts/                        seed-synthetic.mjs, check-i18n.mjs, check-intelligence.mjs, check-ai.mjs
+scripts/                        seed-synthetic.mjs, check-i18n.mjs, check-ai.mjs (live model check)
+tests/                          Vitest unit tests (npm test)
+e2e/                            Playwright browser test (npm run test:e2e)
 ```
 
 ---
@@ -246,7 +248,7 @@ Request and response shapes are the TypeScript types in `src/services/contracts.
 * **Registration:** each sign-up form starts with a *Preferred language* choice (defaults to the language being browsed); the new account is created with it.
 * **How text is translated:** components call `t("English text")` from `useI18n()` (Server Components use `getT()` from `lib/i18n/server`). The English text is the key; Bengali lives in `src/lib/i18n/dict/`. A missing entry falls back to English.
 * **Server text** (API errors, validation messages, notifications, transaction descriptions) stays English in the database and API; the API route translates errors for the caller, and stored text is translated when shown. Messages with values (amounts, names, IDs) match the patterns in `dict/bn-patterns.ts`.
-* **Coverage check:** `node scripts/check-i18n.mjs` lists any user-facing English string without a Bengali entry. Run it after adding UI text.
+* **Coverage check:** `node scripts/check-i18n.mjs` lists any user-facing English string without a Bengali entry. Run it after adding UI text. `npm test` runs the same check and fails on a missing entry.
 * Amounts, phone numbers and IDs keep Latin digits; dates use Bengali month and day names.
 
 ## Merchant & agent intelligence
@@ -273,7 +275,7 @@ Forecasts, benchmarks and risk signals for agents, merchants and the operations 
 ### How the words are made (`src/server/ai/`)
 
 * `explain(kind, facts, lang)` tries `GEMINI_MODEL` → `GEMINI_FALLBACK_MODEL` → `GROQ_MODEL` within one 18-second budget. Each attempt has its own timeout, and time is held back for the next model. Rate-limited or slow models get a short cool-down. If nothing usable comes back, a deterministic English/Bengali template answers.
-* **Privacy:** models only receive aggregated, pre-formatted figures plus category and district. Never names, phone numbers, NIDs, addresses, agent codes or transaction IDs. `scripts/check-ai.mjs` checks this against the whole dataset.
+* **Privacy:** models only receive aggregated, pre-formatted figures plus category and district. Never names, phone numbers, NIDs, addresses, agent codes or transaction IDs. `tests/ai.test.ts` checks this against the whole synthetic dataset.
 * **Guard:** a reply is used only if it is JSON of the expected shape (zod), in the requested language, and every number in it appears in the facts (Bengali digits count the same). Otherwise the next model is tried.
 * **No path to money:** the model has no tools and its output is display text. Suggested actions and amounts come from code, and links only open the normal screens, where the user still confirms with a PIN.
 * **Cache and limits:** wording is cached per user, insight, language and input hash for the Dhaka day (`ai_insights`). Model calls are limited to 30 per user per hour through `rate_limits`, and run outside any database transaction.
@@ -301,11 +303,11 @@ node --env-file=.env.local scripts/seed-synthetic.mjs --reset   # remove it agai
 node --env-file=.env.local scripts/seed-synthetic.mjs --dry-run # generate and validate only
 ```
 
-* 4 customers, 4 agents and 4 merchants across 4 districts, with 90 days of history ending today. That is about 1,500 transactions. With the `seed.sql` accounts that makes **5 accounts per role**. It is kept small on purpose: the app loads the whole database, so a large dataset makes every page slow.
+* 4 customers, 4 agents and 4 merchants across 4 districts, with 90 days of history ending today. That is about 2,000 transactions. With the `seed.sql` accounts that makes **5 accounts per role**. It is kept small on purpose: the app loads the whole database, so a large dataset makes every page slow.
 * Every id starts with `syn_` and every synthetic user is `is_demo`. `--reset` deletes those rows, plus any app transaction made later with a synthetic user (for example a cash-out at a synthetic agent), and reverses their effect on the remaining balances.
 * The demo agent and merchant (Sabbir_Tele, Nafiztong) get a district (Dhaka) and history on top of their real balances. `--reset` reverses the history's effect.
 * Fees, commissions and limits come from `policy.ts`, and postings follow the ledger's rules, so every wallet stays whole-poisha and non-negative.
-* The generator is deterministic (fixed seed, days anchored to the run date).
+* The generator is deterministic: a fixed seed, with days anchored to the run date. `--offline --now=2026-10-07T09:00:00Z --emit=FILE` pins the anchor, so the same date always gives the same data; the tests use this. The planted patterns are checked at many anchor dates (see [Tests](#tests)).
 * **Planted patterns:**
   - weekly seasonality and salary-day cash-out spikes
   - 2 declining merchants (Dhaka, Narayanganj)
@@ -374,6 +376,49 @@ OTP codes and account emails go out through **Brevo SMTP** (`src/server/email.ts
 | `EMAIL_FROM` | e.g. `"Kosh <no-reply@your-domain.com>"`. Must be a verified sender in Brevo. |
 | `APP_URL` | Optional public URL for links in emails (defaults to the request's origin) |
 | `OTP_SHOW_CODES` | `true` (default) shows codes on screen; `false` in production |
+
+## Tests
+
+```bash
+npm test                 # Vitest: unit tests, ~5 s, no database or network
+npm run test:watch       # the same, re-running on change
+npm run test:e2e         # Playwright: one browser test on a throwaway local PostgreSQL (below)
+```
+
+**`npm test`** runs everything in Node against in-memory data:
+
+| File | What it checks |
+|---|---|
+| `tests/ledger.test.ts` | `post()` moves amount, fee, commission and cash together; refuses bad amounts, overdrafts and negative cash; FAILED rows move nothing; pending settlements clear on time; **rollback**: a write that fails half-way, breaks an invariant or throws later leaves the committed state untouched |
+| `tests/policy.test.ts` | fee formulas at their boundaries (free Send Money up to ৳1,000, 1.85% cash-out rounding, the ৳2–৳20 commission clamp), whole-poisha results for every operation, which roles may do what |
+| `tests/operations.test.ts` | the real `operations` handlers: quote = execute, **idempotency keys** (replays, concurrent double submits, another user's key, a failed attempt doesn't use up its key), **limit boundaries** (per-transaction and daily, verified and unverified, OTP from ৳10,000, balance, agent cash), **PIN lockout** (3 wrong PINs lock for 15 minutes, counted across requests), **role refusal** (role read from the database, not the cookie) |
+| `tests/session.test.ts` | `auth.me` only clears a session cookie the request actually sent (see below) |
+| `tests/intelligence.test.ts` | the old `check-intelligence.mjs`: forecasts, demand, liquidity, churn, benchmark, performance and coverage on the synthetic dataset with history ending **2026-10-07** |
+| `tests/intelligence-anchors.test.ts` | the planted patterns at 10 anchor dates across 2026 |
+| `tests/intelligence-rules.test.ts` | rule edge cases on hand-built data |
+| `tests/ai.test.ts` | the offline part of `check-ai.mjs`: no identifying data in the facts, the output guard, templates in English and Bengali; and that `explain()` drops a model reply with an invented figure, the wrong language or the wrong shape and uses the template instead |
+| `tests/i18n.test.ts` | every translatable string has a Bengali entry (`check-i18n.mjs`) |
+
+The handler tests use an in-memory store with the same rules as `src/server/db-store.ts`: writes are serialised, the handler changes a copy, ledger invariants are checked, and only then is the copy kept. Time is pinned with fake timers.
+
+**Why the anchor dates matter.** The generator anchors its 90 days to the day it runs, so each date is a different dataset. Before this suite, 110 of 120 consecutive dates failed at least one planted-pattern check. The causes, fixed at the source:
+* *Generator:* trimming the dataset to 5 accounts per role left the planted patterns at the rules' thresholds. The fast-growing Dhaka agent had no customers in its district (about 16 counter transactions in 28 days, under the 20 the rule asks for); the near-limit pattern expected 3 repeat customers and got 1; the Gazipur agent saw about 0.3 cash-out attempts a day; one declining merchant made so few sales that its score crossed the MEDIUM line by chance.
+* *`anomalies.ts`:* the peer median included the agent being judged, so an agent that was the only active one was compared with itself and could never be flagged. It now leaves itself out.
+* *`churn.ts`:* "almost no history" was measured over the last 28 days, so a merchant whose payments had all but stopped dropped off the churn list. It is now measured over the whole record.
+
+To measure more dates: `ANCHOR_SWEEP=365 npx vitest run tests/intelligence-anchors.test.ts` checks every day of 2026. Measured on 2026-10-07: 364 of 365 dates pass. On 2026-07-17 the rising agent's transactions are up 75% but its volume only 0.7% (the rule asks for 10%), sampling noise in that window's bill payments.
+
+**`npm run test:e2e`** signs in as Ashraful, sends ৳1,500 to a second wallet through the real UI, and then checks both wallets and the transaction row in the database. It needs:
+* **A throwaway PostgreSQL on this machine** (Docker: `docker run --rm -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=kosh_e2e postgres:17`). Every run rebuilds it from `supabase/schema.sql`, `seed.sql` and `e2e/fixtures.sql`, deleting what was there. The setup refuses any host but this machine and any database whose name doesn't contain `e2e` or `test`.
+* `E2E_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/kosh_e2e npm run test:e2e`.
+* A browser: `npx playwright install chromium` once, or add `PLAYWRIGHT_CHANNEL=chrome` to use an installed Google Chrome.
+* Stop `npm run dev` first: the test starts its own dev server on port 3100, in the same `.next/dev` folder.
+
+Writing this test found a sign-in race: the session lookup a page sends on load (no cookie yet) could be answered after a sign-in that ran alongside it, and its "clear the cookie" header deleted the new session, sending the user back to the sign-in page. It showed up in 3 of 10 runs. `auth.me` now clears only a cookie the request sent, and the client ignores a lookup that started before the latest sign-in or sign-out. The test also waits for the dashboard and follows the app's own link instead of jumping to a URL mid-redirect. Measured on 2026-10-07 with that final version: 30 of 30 runs passed.
+
+The test server runs with `NODE_ENV=test`, so Next.js never reads `.env.local`: the live database, email, SMS and AI keys are out of reach. It never uses `DATABASE_URL`.
+
+**CI** (`.github/workflows/ci.yml`, on pushes to `main` and on pull requests): typecheck, lint and `npm test`, and in a second job the Playwright test against a PostgreSQL service container.
 
 ## Deployment (Vercel)
 
