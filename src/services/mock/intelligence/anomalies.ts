@@ -6,7 +6,8 @@ import { lowCashDays } from "./liquidity";
 
 /**
  * Agent signals over the last 28 days, each compared with the agent's own
- * previous 8 weeks and with the median of all active agents:
+ * previous 8 weeks and with the median of the other active agents (the agent
+ * itself is left out, or with few agents it would set its own bar):
  *   NEAR_LIMIT_CASH_OUTS  cash-outs whose total (amount + fee) is within 5% of the per-transaction limit
  *   REPEATED_CUSTOMER     customer-days with 3+ transactions at this agent
  *   OFF_HOURS_ACTIVITY    share of transactions between 23:00 and 05:59
@@ -102,7 +103,7 @@ function agentRows(db: DbState, now: number) {
 }
 
 function flagsFor(row: AgentRow, peers: AgentRow[]): AgentFlag[] {
-  const active = peers.filter((p) => p.current.transactions >= 10);
+  const active = peers.filter((p) => p.agentId !== row.agentId && p.current.transactions >= 10);
   const flags: AgentFlag[] = [];
   const { current: c, baseline: b } = row;
   const baseOrNull = (n: number, of: number) => (b.transactions >= 10 ? round3(share(n, of)) : null);

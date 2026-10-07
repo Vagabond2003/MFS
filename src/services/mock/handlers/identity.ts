@@ -33,6 +33,7 @@ import { hashSecret, randomDigits, randomId, verifySecret } from "../crypto";
 import { settleDue } from "../ledger";
 import { SECURITY } from "../policy";
 import type { DbState, SessionRecord, UserRecord } from "../schema";
+import { requestEnv } from "../runtime";
 import { write } from "../store";
 import { toCurrentUser } from "../views";
 
@@ -141,7 +142,9 @@ export const auth: AuthApi = {
       settleDue(db);
       return sessionInfo(db, caller.session, caller.user);
     });
-    if (!info) clearSessionCookie();
+    // Drop a cookie for a session that has ended. A request that sent no session cookie gets no
+    // Set-Cookie at all: answered after a sign-in that ran alongside it, a "clear" would delete the new session.
+    if (!info && requestEnv().claims()) clearSessionCookie();
     return info;
   },
 

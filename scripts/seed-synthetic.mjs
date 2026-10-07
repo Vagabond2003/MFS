@@ -6,7 +6,8 @@
  *   node --env-file=.env.local scripts/seed-synthetic.mjs --reset      remove synthetic rows only
  *   node --env-file=.env.local scripts/seed-synthetic.mjs --dry-run    generate and validate, write nothing
  *   node scripts/seed-synthetic.mjs --offline --emit=FILE              no database: write the data as JSON
- *                                                                      (used by scripts/check-intelligence.mjs)
+ *                                                                      (used by the intelligence tests)
+ *   … --offline --now=2026-10-07T09:00:00Z                             anchor "today" to a fixed instant (offline only)
  *
  * What it creates (all ids prefixed `syn_`, all users is_demo = true):
  *   4 personal customers, 4 agents and 4 merchants across 4 districts, with 90
@@ -29,7 +30,8 @@
  * repeated customers; off-hours bursts), 1 fast-growing agent, and Gazipur as a
  * district whose single agent can't keep up with demand.
  *
- * Deterministic: a fixed-seed RNG; days are anchored to the run date (Asia/Dhaka).
+ * Deterministic: a fixed-seed RNG; days are anchored to the run date (Asia/Dhaka),
+ * or to --now when given, so the same anchor always produces the same dataset.
  */
 import { writeFileSync } from "node:fs";
 import postgres from "postgres";
@@ -40,8 +42,9 @@ process.removeAllListeners("warning");
 process.on("warning", (w) => w.code !== "MODULE_TYPELESS_PACKAGE_JSON" && console.warn(w.message));
 const { computeFees, OPERATION_POLICY, PERSONAL_LIMITS } = await import("../src/services/mock/policy.ts");
 
-const args = new Set(process.argv.slice(2).filter((a) => !a.startsWith("--emit=")));
+const args = new Set(process.argv.slice(2).filter((a) => !a.startsWith("--emit=") && !a.startsWith("--now=")));
 const EMIT = process.argv.find((a) => a.startsWith("--emit="))?.slice("--emit=".length) ?? null;
+const NOW_ARG = process.argv.find((a) => a.startsWith("--now="))?.slice("--now=".length) ?? null;
 const RESET = args.has("--reset");
 const DRY = args.has("--dry-run") || args.has("--offline");
 const OFFLINE = args.has("--offline");
@@ -105,7 +108,12 @@ const TRX_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 const DHAKA_MS = 6 * 3_600_000;
 const DAY_MS = 86_400_000;
-const NOW = Date.now();
+const NOW = NOW_ARG ? Date.parse(NOW_ARG) : Date.now();
+// A pinned anchor is for offline datasets (tests) only: a real database must get history that ends today.
+if (NOW_ARG && (!OFFLINE || !Number.isFinite(NOW))) {
+  console.error(OFFLINE ? `--now must be an ISO date-time, got "${NOW_ARG}".` : "--now only works with --offline.");
+  process.exit(1);
+}
 const TODAY = Math.floor((NOW + DHAKA_MS) / DAY_MS); // Dhaka day number
 const DAYS = 90;
 const FIRST_DAY = TODAY - (DAYS - 1);
@@ -296,7 +304,7 @@ function generate(base) {
       });
       history(user, [["APPLICATION_SUBMITTED", "Agent application submitted", null, 0], ["VERIFIED", "Approved", DEMO_ADMIN, 2]]);
       wallets.get(user.id).cashInHand = taka(150_000, 0.25, 90_000, 260_000); // opening cash recorded at the outlet
-      agents.push({ user, party: { userId: user.id, name: outletName, account: user.phone, kind: "AGENT" }, district, area, appeal: 1, role: "normal" });
+      agents.push({ user, party: { userId: user.id, name: outletName, account: user.phone, kind: "AGENT" }, district, area, appeal: 1, walkIns: 1, role: "normal" });
     }
   }
   const agentIn = (d) => agents.filter((a) => a.district === d);
@@ -313,10 +321,14 @@ function generate(base) {
   wallets.get(special.gap.user.id).cashInHand = 1_500_000; // thin cash buffer for its demand
   wallets.get(special.nearLimit.user.id).cashInHand = 150_000_000; // a large cash desk feeding the near-limit withdrawals
   wallets.get(special.rising.user.id).cashInHand = 40_000_000; // a growing outlet keeps more cash
+  // Dhaka has no synthetic customers, so the rising outlet's growth shows in its walk-in trade (recharges and
+  // bill payments for people without an account). At the base rate that is ~16 counter transactions in the last
+  // 28 days, under the 20 the "rising" rule needs as evidence, and so few that one busy week reads as a spike.
+  special.rising.walkIns = 8;
   if (base.demoAgent) {
     const a = base.demoAgent;
     wallets.set(a.user.id, { userId: a.user.id, available: a.wallet.available, savings: 0, pending: 0, cashInHand: a.wallet.cashInHand ?? 0, version: 0, updatedAt: null, demo: true, start: { ...a.wallet } });
-    agents.push({ user: a.user, party: { userId: a.user.id, name: a.outletName ?? a.user.name, account: a.user.phone, kind: "AGENT" }, district: "Dhaka", area: "Mirpur", appeal: 2.2, role: "demo" });
+    agents.push({ user: a.user, party: { userId: a.user.id, name: a.outletName ?? a.user.name, account: a.user.phone, kind: "AGENT" }, district: "Dhaka", area: "Mirpur", appeal: 2.2, walkIns: 1, role: "demo" });
   }
   const appeal = (a, day) => (a.role === "rising" ? 0.15 + 4.5 * ((day - FIRST_DAY) / (DAYS - 1)) ** 2 : a.appeal);
 
@@ -348,6 +360,9 @@ function generate(base) {
   const gazipurShop = merchants.find((m) => m.district === "Gazipur");
   gazipurShop.rate = 2.6; // one shop for a whole district
   // Two merchants whose activity falls away over the last month (the first goes quiet for the final week).
+  // Both are busy shops before the fall (2 payments a day) and fade to almost nothing: a one-customer shop at
+  // 0.9 a day trickling at a tenth gave counts so small that its churn score crossed the MEDIUM line by chance
+  // (below it on 48 of 365 run dates).
   const decliners = [
     merchants.find((m) => m.district === "Dhaka" && m.category === "RESTAURANT"),
     merchants.find((m) => m.district === "Narayanganj" && m.category === "PHARMACY"),
@@ -355,7 +370,7 @@ function generate(base) {
   decliners.forEach((m, i) => {
     m.decline = { start: TODAY - int(20, 23), quietDays: i < 1 ? int(7, 9) : 0 };
     m.failRate = 0.05;
-    m.rate = Math.max(m.rate, 0.9);
+    m.rate = Math.max(m.rate, 2);
   });
   if (base.demoMerchant) {
     const d = base.demoMerchant;
@@ -370,8 +385,8 @@ function generate(base) {
     if (m.demo) return 0.85 + 0.35 * ((day - FIRST_DAY) / (DAYS - 1));
     if (!m.decline || day < m.decline.start) return 1;
     if (TODAY - day < m.decline.quietDays) return 0;
-    // Falls over ten days, then trickles along at a tenth of its old level.
-    return Math.max(0.1, 1 - (day - m.decline.start) / 10);
+    // Falls over ten days, then trickles along at a fiftieth of its old level.
+    return Math.max(0.02, 1 - (day - m.decline.start) / 10);
   };
 
   /* ── Customers ── */
@@ -383,8 +398,10 @@ function generate(base) {
       const area = pick(DISTRICTS[district]);
       out.personalProfiles.push({ userId: user.id, dateOfBirth: dob(), address: `House ${int(1, 120)}, ${area}, ${district}`, nidNumber: verified ? nid() : null, selfieStatus: verified ? "VERIFIED" : "NOT_SUBMITTED" });
       history(user, verified ? [["PENDING_VERIFICATION", "Account created", null, 0], ["VERIFIED", "e-KYC passed (NID + selfie match)", null, 0]] : [["PENDING_VERIFICATION", "Account created", null, 0]]);
-      // Gazipur's customers stand in for a crowded district: they cash out at their one agent far more often.
-      const agentVisits = district === "Gazipur" ? 8 : 1;
+      // Gazipur's two customers stand in for a crowded district: they cash out at their one agent far more often.
+      // Enough that demand outruns its thin cash buffer every week (at 8 it was ~0.3 attempts a day, and whether
+      // the agent showed a service gap depended on the run date).
+      const agentVisits = district === "Gazipur" ? 30 : 1;
       customers.push({ user, district, party: { userId: user.id, name: user.name, account: user.phone, kind: "PERSONAL" }, level: Math.exp(0.45 * gauss()), salaryDay: int(1, 5), agentVisits });
     }
   }
@@ -534,7 +551,10 @@ function generate(base) {
   }
   function chooseAgent(c, day) {
     const local = agents.filter((a) => a.district === c.district);
-    const pool = local.length && !(c.district === "Gazipur" && chance(0.25)) ? local : agents.filter((a) => a.district === "Dhaka");
+    // Gazipur customers the local agent can't serve go to an established Dhaka outlet. Not the rising one:
+    // its growth is its own walk-in trade, which a few large cash-outs would swing more than the growth itself.
+    const overflow = agents.filter((a) => a.district === "Dhaka" && a.role !== "rising");
+    const pool = !local.length || (c.district === "Gazipur" && overflow.length && chance(0.25)) ? overflow : local;
     return pool[weighted(pool.map((a) => appeal(a, day)))];
   }
   function agentFailureRate(a) {
@@ -688,7 +708,7 @@ function generate(base) {
 
     // Agents: walk-in services and float management.
     for (const a of agents) {
-      const scale = appeal(a, day);
+      const scale = appeal(a, day) * a.walkIns;
       for (let k = poisson(0.1 * scale); k > 0; k--) {
         const ms = timeOn(day, HOURS.AGENT);
         const amount = taka(150, 0.6, 20, 1_000);
@@ -729,13 +749,16 @@ function generate(base) {
     }
 
     // Anomaly 1 — Chattogram agent, last 7 weeks: cash-outs just under the per-transaction limit, by the same few customers.
+    // About 1.8 such withdrawals per active day in all, however many verified customers the district has
+    // (the daily limit caps one customer at two).
     if (TODAY - day < 50 && [0, 1, 3].includes(d) && chance(0.85)) {
       for (const c of nearLimitMules) {
-        if (!chance(0.6)) continue;
-        const ms = at(day, int(15, 20), int(0, 59));
-        // Largest amount whose gross (amount + 1.85% fee) stays under the 25,000 per-transaction limit.
-        const amount = int(24_000, 24_540) * 100;
-        schedule(ms, () => cashOut(c, special.nearLimit, amount, ms, day, { assisted: true }));
+        for (let k = poisson(1.8 / nearLimitMules.length); k > 0; k--) {
+          const ms = at(day, int(15, 20), int(0, 59));
+          // Largest amount whose gross (amount + 1.85% fee) stays under the 25,000 per-transaction limit.
+          const amount = int(24_000, 24_540) * 100;
+          schedule(ms, () => cashOut(c, special.nearLimit, amount, ms, day, { assisted: true }));
+        }
       }
     }
     // Anomaly 2 — Narayanganj agent: bursts between 1 and 4 a.m., mostly the same two customers.

@@ -26,9 +26,11 @@ export function merchantChurnRisk(db: DbState, merchantUserId: string, now = Dat
     const x = ts(t);
     return x >= now - fromDaysAgo * DAY_MS && x < now - toDaysAgo * DAY_MS;
   };
+  // "Almost no history" means over the merchant's whole record, not the last 28 days:
+  // a merchant whose payments have all but stopped is the riskiest one, not one to leave out.
+  if (good.length < 3) return null;
   const last14 = good.filter((t) => inWindow(t, 14, 0));
   const prev14 = good.filter((t) => inWindow(t, 28, 14));
-  if (last14.length + prev14.length < 3) return null;
 
   const lastPayment = good.reduce((m, t) => Math.max(m, ts(t)), 0);
   const daysSince = lastPayment ? Math.floor((now - lastPayment) / DAY_MS) : null;
