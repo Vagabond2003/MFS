@@ -3,6 +3,7 @@ import type {
   AgentLiquidity,
   AgentPerformance,
   BusinessCategory,
+  ChurnFactorKey,
   DistrictCoverage,
   MerchantBenchmark,
   MerchantChurnRisk,
@@ -12,6 +13,18 @@ import { localizeMonths, msg, type Lang, type Translate } from "@/lib/i18n/core"
 import { formatMoney } from "@/lib/utils";
 import type { MerchantSignal } from "@/services/mock/intelligence";
 import { recommendationsOutput, textOutput, type RecommendationsOutput, type TextOutput } from "./guard";
+
+/**
+ * Place names are the only free text that reaches a model. Reduced to letters,
+ * spaces and basic punctuation (40 characters at most) so text planted in a
+ * district name can't bring numbers, links or JSON into the facts — the guard
+ * accepts any number that appears in the facts.
+ */
+export function placeName(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const clean = s.replace(/[^\p{L}\p{M} .'-]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 40).trim();
+  return clean || null;
+}
 
 /**
  * The insights the AI layer can put into words. For each one:
@@ -61,7 +74,7 @@ export function liquidityFacts(l: AgentLiquidity, district: string | null): Liqu
   const labelOf = (date: string) => l.days.find((d) => d.date === date)?.label ?? date;
   const uplift = l.cashOutForecast.monthStartUplift;
   return {
-    district,
+    district: placeName(district),
     cash_in_hand: money(l.cashInHand),
     e_money_float: money(l.float),
     expected_cash_out_next_7_days: money(week.reduce((s, d) => s + d.cashOut, 0)),
@@ -170,7 +183,7 @@ export function demandFacts(d: MerchantDemand, category: BusinessCategory, distr
   const uplift = d.revenueForecast.monthStartUplift;
   return {
     category: CATEGORY_LABEL[category],
-    district,
+    district: placeName(district),
     expected_sales_next_7_days: money(d.nextWeek.value),
     likely_range_low: money(d.nextWeek.low),
     likely_range_high: money(d.nextWeek.high),
@@ -242,7 +255,7 @@ export interface RecommendationFacts {
 export function recommendationFacts(signals: MerchantSignal[], category: BusinessCategory, district: string | null): RecommendationFacts {
   return {
     category: CATEGORY_LABEL[category],
-    district,
+    district: placeName(district),
     signals: signals.map((s): Record<string, string | number> => {
       const d = s.data;
       switch (s.code) {
@@ -293,29 +306,40 @@ function recommendationsTemplate(f: RecommendationFacts, t: Translate, lang: Lan
 
 export interface ChurnFacts {
   merchants_scored: number;
+  /** Scored by the trained model; the rest (thin history) by the rule score. */
+  scored_by_model: number;
   high_risk: number;
   medium_risk: number;
   most_common_reason: string | null;
   high_risk_by_district: { district: string; merchants: number }[];
 }
 
-const REASON_LABEL = {
+const REASON_LABEL: Record<ChurnFactorKey, string> = {
   RECENCY: msg("no recent payments"),
   COUNT_DROP: msg("fewer payments"),
   VALUE_DROP: msg("lower sales value"),
   FAILURE_RATE: msg("failed payments"),
   REFUND_RATE: msg("refunds"),
+  TENURE: msg("being new to Kosh"),
+  TREND: msg("a falling weekly trend"),
+  CONCENTRATION: msg("relying on a few customers"),
+  REPEAT_SHARE: msg("few repeat customers"),
+  ACTIVITY: msg("few active days"),
 };
 
 export function churnFacts(list: MerchantChurnRisk[]): ChurnFacts {
   const risky = list.filter((r) => r.level !== "LOW");
   const reasons = new Map<string, number>();
   for (const r of risky) if (r.factors[0]) reasons.set(r.factors[0].key, (reasons.get(r.factors[0].key) ?? 0) + 1);
-  const top = [...reasons.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] as keyof typeof REASON_LABEL | undefined;
+  const top = [...reasons.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] as ChurnFactorKey | undefined;
   const byDistrict = new Map<string, number>();
-  for (const r of list.filter((x) => x.level === "HIGH")) byDistrict.set(r.district ?? "Unknown", (byDistrict.get(r.district ?? "Unknown") ?? 0) + 1);
+  for (const r of list.filter((x) => x.level === "HIGH")) {
+    const d = placeName(r.district) ?? "Unknown";
+    byDistrict.set(d, (byDistrict.get(d) ?? 0) + 1);
+  }
   return {
     merchants_scored: list.length,
+    scored_by_model: list.filter((r) => r.method === "MODEL").length,
     high_risk: list.filter((r) => r.level === "HIGH").length,
     medium_risk: list.filter((r) => r.level === "MEDIUM").length,
     most_common_reason: top ? REASON_LABEL[top] : null,
@@ -352,7 +376,7 @@ export function agentsFacts(list: AgentIntelligence[]): AgentsFacts {
     volume_spikes: count("VOLUME_SPIKE"),
     rising_performers: list.filter((a) => a.rising).length,
     service_gaps: list.filter((a) => a.serviceGap).length,
-    service_gap_districts: [...new Set(list.filter((a) => a.serviceGap && a.district).map((a) => a.district!))],
+    service_gap_districts: [...new Set(list.filter((a) => a.serviceGap && placeName(a.district)).map((a) => placeName(a.district)!))],
   };
 }
 
@@ -381,11 +405,11 @@ export function coverageFacts(list: DistrictCoverage[]): CoverageFacts {
   const median = perAgent.length ? (perAgent.length % 2 ? perAgent[perAgent.length >> 1] : (perAgent[perAgent.length / 2 - 1] + perAgent[perAgent.length / 2]) / 2) : 0;
   return {
     districts: list.length,
-    most_underserved: list[0]?.district ?? null,
+    most_underserved: placeName(list[0]?.district),
     customers_per_agent: list[0]?.customersPerAgent ?? null,
     network_median_customers_per_agent: Math.round(median * 10) / 10,
     extra_agents_needed: list[0]?.agentsNeeded ?? 0,
-    next_most_underserved: list[1]?.district ?? null,
+    next_most_underserved: placeName(list[1]?.district),
   };
 }
 

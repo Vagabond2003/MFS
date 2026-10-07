@@ -1,0 +1,138 @@
+{
+ "name": "Churn logistic regression",
+ "version": "churn-2026-10-07",
+ "trainedAt": "2026-10-07",
+ "syntheticData": true,
+ "label": "No successful payment in the 30 days after the snapshot",
+ "minHistory": {
+  "tenureDays": 30,
+  "payments60": 5
+ },
+ "thresholds": {
+  "high": 0.5,
+  "medium": 0.15
+ },
+ "dataset": {
+  "rows": 36681,
+  "merchants": 1509,
+  "snapshots": 30,
+  "positiveRate": 0.0503,
+  "train_snapshots": {
+   "from": "2026-02-04",
+   "to": "2026-06-03",
+   "count": 18
+  },
+  "test_snapshots": {
+   "from": "2026-07-08",
+   "to": "2026-08-26",
+   "count": 8
+  },
+  "skipped_snapshots_between": 4,
+  "train_merchants": 985,
+  "test_merchants": 366
+ },
+ "test": {
+  "roc_auc": 0.9795,
+  "pr_auc": 0.8814,
+  "precision_top10": 0.4464,
+  "recall_top10": 0.9398,
+  "brier": 0.0122,
+  "ece": 0.0078,
+  "base_rate": 0.0475,
+  "rows": 2799,
+  "positives": 133,
+  "ci95": {
+   "roc_auc": [
+    0.9609,
+    0.9928
+   ],
+   "pr_auc": [
+    0.8035,
+    0.9411
+   ],
+   "precision_top10": [
+    0.2804,
+    0.6268
+   ]
+  }
+ },
+ "baseline": {
+  "roc_auc": 0.9531,
+  "pr_auc": 0.6038,
+  "precision_top10": 0.4321,
+  "recall_top10": 0.9098,
+  "brier": 0.0372,
+  "ece": 0.0791,
+  "base_rate": 0.0475,
+  "rows": 2799,
+  "positives": 133,
+  "ci95": {
+   "roc_auc": [
+    0.9287,
+    0.9708
+   ],
+   "pr_auc": [
+    0.4824,
+    0.7094
+   ],
+   "precision_top10": [
+    0.2633,
+    0.5971
+   ]
+  }
+ },
+ "kind": "logistic_regression",
+ "features": [
+  "days_since_last",
+  "count_drop",
+  "value_drop",
+  "failure_rate",
+  "refund_rate",
+  "tenure_days",
+  "trend_8w",
+  "top_customer_share",
+  "repeat_share",
+  "log_payments_60",
+  "active_days_28"
+ ],
+ "mean": [
+  2.308554685011784,
+  0.15983413408497515,
+  0.17445123281737712,
+  0.017176929868144484,
+  0.008470152939677683,
+  306.70851646601693,
+  -0.011548569845213096,
+  0.20014266953309337,
+  0.5957362398878928,
+  4.0704093646728055,
+  0.6055253673482389
+ ],
+ "scale": [
+  6.867891363863643,
+  0.2377940342424894,
+  0.24979003701735064,
+  0.032392497093556474,
+  0.02735675507752204,
+  98.24823263399018,
+  0.12771133423752418,
+  0.10076973445577612,
+  0.1685648312799453,
+  0.7782351324312691,
+  0.26215675391602394
+ ],
+ "coef": [
+  1.4893711773917881,
+  0.5636509211194828,
+  -0.05053074927628638,
+  0.20764192359737582,
+  0.11592165908456138,
+  -0.19877149520266443,
+  0.22777570456569704,
+  0.11522646731277011,
+  0.07701300638527862,
+  1.4300226078018772,
+  -1.8212863633141505
+ ],
+ "intercept": -4.909647179024771
+}

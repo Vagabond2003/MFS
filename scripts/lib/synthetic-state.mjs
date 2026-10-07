@@ -5,7 +5,8 @@
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { gunzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 const GENERATOR = fileURLToPath(new URL("../seed-synthetic.mjs", import.meta.url));
@@ -22,9 +23,29 @@ export function generateSynthetic({ now } = {}) {
   return JSON.parse(readFileSync(file, "utf8"));
 }
 
-/** Reads a dataset written by `seed-synthetic.mjs --emit=FILE`. */
+/**
+ * Reads a dataset written by `seed-synthetic.mjs --emit=FILE` or
+ * `generate-large.mjs` (whose transactions are in a gzipped JSON-lines file beside it).
+ */
 export function readSynthetic(file) {
-  return JSON.parse(readFileSync(file, "utf8"));
+  const data = JSON.parse(readFileSync(file, "utf8"));
+  if (data.transactionsFile) data.transactions = readJsonLines(join(dirname(file), data.transactionsFile));
+  return data;
+}
+
+/** JSON lines (gzipped when the name ends in .gz), decoded in slices: the whole file can be too large for one string. */
+function readJsonLines(file) {
+  const raw = readFileSync(file);
+  const buf = file.endsWith(".gz") ? gunzipSync(raw) : raw;
+  const out = [];
+  const step = 32 * 1024 * 1024;
+  for (let start = 0; start < buf.length; ) {
+    let end = Math.min(buf.length, start + step);
+    if (end < buf.length) end = buf.indexOf(10, end) + 1 || buf.length; // finish the line
+    for (const line of buf.toString("utf8", start, end).split("\n")) if (line) out.push(JSON.parse(line));
+    start = end;
+  }
+  return out;
 }
 
 /** Emitted JSON → { db, now, specials }, where `now` is the instant the history ends. */

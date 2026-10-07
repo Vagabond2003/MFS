@@ -22,7 +22,7 @@
 begin;
 
 drop table if exists
-  app_state, avatars, document_files, ai_insights, idempotency_keys, rate_limits, payment_requests, disputes, audit_logs,
+  app_state, avatars, document_files, flag_reviews, ai_insights, idempotency_keys, rate_limits, payment_requests, disputes, audit_logs,
   sessions, otp_codes, notifications, commissions, transactions, wallets,
   verification_documents, account_status_history, merchant_businesses,
   merchant_profiles, agent_profiles, personal_profiles, users
@@ -398,6 +398,21 @@ create table ai_insights (
 );
 create index ai_insights_lookup_idx on ai_insights (user_id, kind, language, input_hash, created_at desc);
 
+-- Admin decisions on intelligence flags (same as supabase/migrations/20261008_flag_reviews.sql).
+create table flag_reviews (
+  id              text        primary key,
+  kind            text        not null check (kind in ('AGENT_FLAG', 'CHURN')),
+  subject_user_id text        not null references users (id) on delete cascade deferrable initially deferred,
+  code            text        not null,              -- agent flag code, or 'CHURN'
+  decision        text        not null check (decision in ('CONFIRMED', 'DISMISSED')),
+  note            text        check (note is null or char_length(note) <= 300),
+  flag_value      double precision,                  -- the flag's measure (or churn score) when it was reviewed
+  severity        text,                              -- HIGH / MEDIUM when it was reviewed
+  reviewer_id     text        references users (id) on delete set null deferrable initially deferred,
+  created_at      timestamptz not null default now()
+);
+create index flag_reviews_subject_idx on flag_reviews (subject_user_id, code, created_at desc);
+
 -- Profile picture bytes (JPG/PNG/WebP, ≤ 2 MB), served by GET /api/avatars/:id.
 -- Not loaded into the app's per-request snapshot. user_id is null between an
 -- upload during registration and account creation.
@@ -446,6 +461,7 @@ alter table payment_requests       enable row level security;
 alter table rate_limits            enable row level security;
 alter table idempotency_keys       enable row level security;
 alter table ai_insights            enable row level security;
+alter table flag_reviews           enable row level security;
 alter table avatars                enable row level security;
 alter table document_files         enable row level security;
 
@@ -474,7 +490,7 @@ begin
     'users', 'personal_profiles', 'agent_profiles', 'merchant_profiles', 'merchant_businesses',
     'account_status_history', 'verification_documents', 'wallets', 'transactions', 'commissions',
     'notifications', 'otp_codes', 'sessions', 'audit_logs', 'disputes', 'payment_requests',
-    'rate_limits', 'idempotency_keys', 'ai_insights'
+    'rate_limits', 'idempotency_keys', 'ai_insights', 'flag_reviews'
   ] loop
     if to_regclass('public.' || t) is not null then
       execute format('drop trigger if exists %I on %I', t || '_bump_version', t);

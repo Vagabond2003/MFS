@@ -1,0 +1,571 @@
+{
+ "trainedAt": "2026-10-07",
+ "seed": 20261008,
+ "params": {
+  "logistic_regression": {
+   "C": 1.0,
+   "max_iter": 2000
+  },
+  "gradient_boosting": {
+   "n_estimators": 200,
+   "learning_rate": 0.05,
+   "max_depth": 3,
+   "min_samples_leaf": 20,
+   "subsample": 0.8,
+   "random_state": 20261008
+  }
+ },
+ "split": {
+  "train_snapshots": {
+   "from": "2026-02-04",
+   "to": "2026-06-03",
+   "count": 18
+  },
+  "test_snapshots": {
+   "from": "2026-07-08",
+   "to": "2026-08-26",
+   "count": 8
+  },
+  "skipped_snapshots_between": 4,
+  "train_merchants": 985,
+  "test_merchants": 366
+ },
+ "rows": {
+  "test": 2799,
+  "train": 15699,
+  "val": 934,
+  "fit": 6136
+ },
+ "validation_pr_auc": {
+  "logistic_regression": 0.9086,
+  "gradient_boosting": 0.8687,
+  "rule_score": 0.5259
+ },
+ "chosen": "logistic_regression",
+ "thresholds": {
+  "high": 0.5,
+  "medium": 0.15
+ },
+ "test": {
+  "logistic_regression": {
+   "rows": 2799,
+   "positives": 133,
+   "base_rate": 0.04751697034655234,
+   "roc_auc": 0.9794770121101704,
+   "pr_auc": 0.8814015909224816,
+   "precision_top10": 0.44642857142857145,
+   "recall_top10": 0.9398496240601504,
+   "brier": 0.012159202906767882,
+   "ece": 0.007833750636577234,
+   "reliability": [
+    {
+     "predicted": 0.0013,
+     "observed": 0.0,
+     "rows": 280
+    },
+    {
+     "predicted": 0.002,
+     "observed": 0.0,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0026,
+     "observed": 0.0036,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0032,
+     "observed": 0.0036,
+     "rows": 280
+    },
+    {
+     "predicted": 0.004,
+     "observed": 0.0,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0051,
+     "observed": 0.0,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0068,
+     "observed": 0.0,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0096,
+     "observed": 0.0036,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0175,
+     "observed": 0.0179,
+     "rows": 280
+    },
+    {
+     "predicted": 0.4282,
+     "observed": 0.448,
+     "rows": 279
+    }
+   ],
+   "calibration_note": null,
+   "ci95": {
+    "roc_auc": [
+     0.9609,
+     0.9928
+    ],
+    "pr_auc": [
+     0.8035,
+     0.9411
+    ],
+    "precision_top10": [
+     0.2804,
+     0.6268
+    ]
+   }
+  },
+  "gradient_boosting": {
+   "rows": 2799,
+   "positives": 133,
+   "base_rate": 0.04751697034655234,
+   "roc_auc": 0.9741382714099576,
+   "pr_auc": 0.8801333041711186,
+   "precision_top10": 0.4392857142857143,
+   "recall_top10": 0.924812030075188,
+   "brier": 0.010618526204285014,
+   "ece": 0.0065602392626724435,
+   "reliability": [
+    {
+     "predicted": 0.0015,
+     "observed": 0.0036,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0015,
+     "observed": 0.0,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0015,
+     "observed": 0.0,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0015,
+     "observed": 0.0,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0017,
+     "observed": 0.0036,
+     "rows": 280
+    },
+    {
+     "predicted": 0.002,
+     "observed": 0.0036,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0023,
+     "observed": 0.0036,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0055,
+     "observed": 0.0071,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0143,
+     "observed": 0.0143,
+     "rows": 280
+    },
+    {
+     "predicted": 0.451,
+     "observed": 0.4409,
+     "rows": 279
+    }
+   ],
+   "calibration_note": null,
+   "ci95": {
+    "roc_auc": [
+     0.9527,
+     0.991
+    ],
+    "pr_auc": [
+     0.7865,
+     0.9467
+    ],
+    "precision_top10": [
+     0.2775,
+     0.6286
+    ]
+   }
+  },
+  "rule_score": {
+   "rows": 2799,
+   "positives": 133,
+   "base_rate": 0.04751697034655234,
+   "roc_auc": 0.9530963567959658,
+   "pr_auc": 0.6038201370693627,
+   "precision_top10": 0.43214285714285716,
+   "recall_top10": 0.9097744360902256,
+   "brier": 0.03716002143622723,
+   "ece": 0.07907466952483029,
+   "reliability": [
+    {
+     "predicted": 0.0,
+     "observed": 0.0036,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0033,
+     "observed": 0.0,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0228,
+     "observed": 0.0,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0355,
+     "observed": 0.0071,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0565,
+     "observed": 0.0,
+     "rows": 280
+    },
+    {
+     "predicted": 0.0822,
+     "observed": 0.0,
+     "rows": 280
+    },
+    {
+     "predicted": 0.1196,
+     "observed": 0.0,
+     "rows": 280
+    },
+    {
+     "predicted": 0.1716,
+     "observed": 0.0107,
+     "rows": 280
+    },
+    {
+     "predicted": 0.2505,
+     "observed": 0.0286,
+     "rows": 280
+    },
+    {
+     "predicted": 0.4806,
+     "observed": 0.4265,
+     "rows": 279
+    }
+   ],
+   "calibration_note": "rule score \u00f7 100, not a probability",
+   "ci95": {
+    "roc_auc": [
+     0.9287,
+     0.9708
+    ],
+    "pr_auc": [
+     0.4824,
+     0.7094
+    ],
+    "precision_top10": [
+     0.2633,
+     0.5971
+    ]
+   }
+  }
+ },
+ "test_still_active": {
+  "logistic_regression": {
+   "rows": 2689,
+   "positives": 36,
+   "base_rate": 0.01338787653402752,
+   "roc_auc": 0.9309167818402647,
+   "pr_auc": 0.48919169439272636,
+   "precision_top10": 0.10780669144981413,
+   "recall_top10": 0.8055555555555556,
+   "brier": 0.009573945423859012,
+   "ece": 0.005719782398667794,
+   "reliability": [
+    {
+     "predicted": 0.0013,
+     "observed": 0.0,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0019,
+     "observed": 0.0,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0025,
+     "observed": 0.0037,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0031,
+     "observed": 0.0,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0039,
+     "observed": 0.0037,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0049,
+     "observed": 0.0,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0063,
+     "observed": 0.0,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0085,
+     "observed": 0.0037,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0136,
+     "observed": 0.0149,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0778,
+     "observed": 0.1082,
+     "rows": 268
+    }
+   ],
+   "calibration_note": null,
+   "ci95": {
+    "roc_auc": [
+     0.8702,
+     0.978
+    ],
+    "pr_auc": [
+     0.3252,
+     0.6535
+    ],
+    "precision_top10": [
+     0.0623,
+     0.1573
+    ]
+   }
+  },
+  "gradient_boosting": {
+   "rows": 2689,
+   "positives": 36,
+   "base_rate": 0.01338787653402752,
+   "roc_auc": 0.9104472923734138,
+   "pr_auc": 0.5453619061118488,
+   "precision_top10": 0.10780669144981413,
+   "recall_top10": 0.8055555555555556,
+   "brier": 0.008472910359818604,
+   "ece": 0.004886286810426486,
+   "reliability": [
+    {
+     "predicted": 0.0015,
+     "observed": 0.0037,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0015,
+     "observed": 0.0,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0015,
+     "observed": 0.0,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0015,
+     "observed": 0.0,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0016,
+     "observed": 0.0037,
+     "rows": 269
+    },
+    {
+     "predicted": 0.002,
+     "observed": 0.0037,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0022,
+     "observed": 0.0,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0041,
+     "observed": 0.0112,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0097,
+     "observed": 0.0037,
+     "rows": 269
+    },
+    {
+     "predicted": 0.1075,
+     "observed": 0.1082,
+     "rows": 268
+    }
+   ],
+   "calibration_note": null,
+   "ci95": {
+    "roc_auc": [
+     0.8419,
+     0.9651
+    ],
+    "pr_auc": [
+     0.3852,
+     0.6998
+    ],
+    "precision_top10": [
+     0.0618,
+     0.1577
+    ]
+   }
+  },
+  "rule_score": {
+   "rows": 2689,
+   "positives": 36,
+   "base_rate": 0.01338787653402752,
+   "roc_auc": 0.8951920257988859,
+   "pr_auc": 0.3500460878757757,
+   "precision_top10": 0.09665427509293681,
+   "recall_top10": 0.7222222222222222,
+   "brier": 0.02668783934548159,
+   "ece": 0.09082930457419117,
+   "reliability": [
+    {
+     "predicted": 0.0,
+     "observed": 0.0037,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0026,
+     "observed": 0.0,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0209,
+     "observed": 0.0,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0341,
+     "observed": 0.0074,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0525,
+     "observed": 0.0,
+     "rows": 269
+    },
+    {
+     "predicted": 0.0752,
+     "observed": 0.0,
+     "rows": 269
+    },
+    {
+     "predicted": 0.1088,
+     "observed": 0.0,
+     "rows": 269
+    },
+    {
+     "predicted": 0.1548,
+     "observed": 0.0074,
+     "rows": 269
+    },
+    {
+     "predicted": 0.2187,
+     "observed": 0.0186,
+     "rows": 269
+    },
+    {
+     "predicted": 0.3756,
+     "observed": 0.097,
+     "rows": 268
+    }
+   ],
+   "calibration_note": "rule score \u00f7 100, not a probability",
+   "ci95": {
+    "roc_auc": [
+     0.8144,
+     0.9603
+    ],
+    "pr_auc": [
+     0.1989,
+     0.5177
+    ],
+    "precision_top10": [
+     0.0519,
+     0.1445
+    ]
+   }
+  }
+ },
+ "levels": {
+  "model_high": {
+   "flagged": 115,
+   "precision": 0.8956521739130435,
+   "recall": 0.7744360902255639
+  },
+  "model_high_or_medium": {
+   "flagged": 143,
+   "precision": 0.8041958041958042,
+   "recall": 0.8646616541353384
+  },
+  "rule_high": {
+   "flagged": 68,
+   "precision": 0.7352941176470589,
+   "recall": 0.37593984962406013
+  },
+  "rule_high_or_medium": {
+   "flagged": 232,
+   "precision": 0.5129310344827587,
+   "recall": 0.8947368421052632
+  }
+ },
+ "importance": {
+  "logistic_regression_coef_per_sd": {
+   "days_since_last": 1.4894,
+   "count_drop": 0.5637,
+   "value_drop": -0.0505,
+   "failure_rate": 0.2076,
+   "refund_rate": 0.1159,
+   "tenure_days": -0.1988,
+   "trend_8w": 0.2278,
+   "top_customer_share": 0.1152,
+   "repeat_share": 0.077,
+   "log_payments_60": 1.43,
+   "active_days_28": -1.8213
+  },
+  "gradient_boosting_importance": {
+   "days_since_last": 0.8604,
+   "count_drop": 0.0079,
+   "value_drop": 0.0057,
+   "failure_rate": 0.0048,
+   "refund_rate": 0.0022,
+   "tenure_days": 0.0147,
+   "trend_8w": 0.0388,
+   "top_customer_share": 0.0048,
+   "repeat_share": 0.0089,
+   "log_payments_60": 0.0485,
+   "active_days_28": 0.0033
+  }
+ }
+}

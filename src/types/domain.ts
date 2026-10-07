@@ -731,12 +731,28 @@ export interface MerchantBenchmark {
   }[];
 }
 
-export type ChurnFactorKey = "RECENCY" | "COUNT_DROP" | "VALUE_DROP" | "FAILURE_RATE" | "REFUND_RATE";
+/** The rule score's five factors, plus the extra reasons the model can give. */
+export type ChurnFactorKey =
+  | "RECENCY"
+  | "COUNT_DROP"
+  | "VALUE_DROP"
+  | "FAILURE_RATE"
+  | "REFUND_RATE"
+  | "TENURE"
+  | "TREND"
+  | "CONCENTRATION"
+  | "REPEAT_SHARE"
+  | "ACTIVITY";
 
 export interface ChurnFactor {
   key: ChurnFactorKey;
+  /** Rule score: points out of 100. Model: share (0–100) of what pushes this merchant's risk up. */
   points: number;
-  /** Raw measure: days, a 0–1 drop, or a 0–1 rate. */
+  /**
+   * Raw measure: days (RECENCY, TENURE), a 0–1 drop, a 0–1 rate or share
+   * (FAILURE_RATE, REFUND_RATE, CONCENTRATION, REPEAT_SHARE, ACTIVITY = share of
+   * the last 28 days with a payment), or TREND = weekly change as a share (negative = falling).
+   */
   value: number;
 }
 
@@ -746,14 +762,21 @@ export interface MerchantChurnRisk {
   businessName: string;
   category: BusinessCategory;
   district: string | null;
+  /** MODEL: chance of churning in the next 30 days, in percent. RULES: rule points out of 100. */
   score: number;
   level: "HIGH" | "MEDIUM" | "LOW";
+  /** RULES is the fallback for merchants with too little history for the model. */
+  method: "MODEL" | "RULES";
+  /** Model probability (0–1); null for the rule score. */
+  probability: number | null;
   factors: ChurnFactor[];
   daysSinceLastPayment: number | null;
   count14: number;
   prevCount14: number;
   value14: Money;
   prevValue14: Money;
+  /** The latest admin decision on this merchant's churn flag, if any. */
+  review?: FlagReview | null;
 }
 
 export type AgentFlagCode = "NEAR_LIMIT_CASH_OUTS" | "REPEATED_CUSTOMER" | "OFF_HOURS_ACTIVITY" | "VOLUME_SPIKE";
@@ -768,6 +791,25 @@ export interface AgentFlag {
   baseline: number | null;
   /** Transactions behind the flag (last 28 days). */
   evidence: number;
+  /** The latest admin decision on this flag, if any. */
+  review?: FlagReview | null;
+}
+
+/** An administrator's decision on an intelligence flag. */
+export interface FlagReview {
+  decision: "CONFIRMED" | "DISMISSED";
+  note: string | null;
+  reviewerName: string;
+  at: string;
+}
+
+export interface FlagReviewInput {
+  kind: "AGENT_FLAG" | "CHURN";
+  subjectUserId: string;
+  /** Agent flag code, or "CHURN". */
+  code: string;
+  decision: "CONFIRMED" | "DISMISSED";
+  note?: string;
 }
 
 export interface AgentIntelligence {
@@ -849,16 +891,47 @@ export interface MerchantRecommendationsView {
   ai: AiRecommendations;
 }
 
+export interface ChurnModelMetrics {
+  rows: number;
+  positives: number;
+  rocAuc: number;
+  prAuc: number;
+  precisionTop10: number;
+  recallTop10: number;
+  brier: number;
+}
+
+/** The churn model in use and how it did on its held-out test set. */
+export interface ChurnModelInfo {
+  name: string;
+  version: string;
+  /** YYYY-MM-DD */
+  trainedAt: string;
+  /** True: trained and tested on synthetic data only. */
+  syntheticData: boolean;
+  label: string;
+  thresholds: { high: number; medium: number };
+  minHistory: { tenureDays: number; payments60: number };
+  test: ChurnModelMetrics;
+  /** The rule score on the same test set. */
+  baseline: ChurnModelMetrics;
+}
+
 export interface ChurnRiskView {
   asOf: string;
   /** Highest risk first. */
   merchants: MerchantChurnRisk[];
+  model: ChurnModelInfo;
+  /** False until the flag_reviews migration has run: decisions can't be saved. */
+  reviewsEnabled: boolean;
   ai: AiText;
 }
 
 export interface AgentIntelligenceView {
   asOf: string;
   agents: AgentIntelligence[];
+  /** False until the flag_reviews migration has run: decisions can't be saved. */
+  reviewsEnabled: boolean;
   ai: AiText;
 }
 

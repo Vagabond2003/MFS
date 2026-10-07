@@ -5,7 +5,9 @@
  */
 export { forecastSeries, merchantDemand } from "./forecast";
 export { agentLiquidity, lowCashDays } from "./liquidity";
-export { churnRanking, merchantChurnRisk, CHURN_WEIGHTS } from "./churn";
+export { churnRanking, merchantChurnRisk, modelChurnScore, ruleChurnScore, CHURN_WEIGHTS } from "./churn";
+export { churnSnapshot, hasModelHistory, CHURN_FEATURES } from "./churn-features";
+export { CHURN_MODEL_INFO, scoreChurnModel } from "./churn-model";
 export { merchantBenchmark, BENCHMARK_WINDOW_DAYS } from "./benchmark";
 export { agentIntelligence, agentPerformance } from "./anomalies";
 export { locationCoverage } from "./coverage";

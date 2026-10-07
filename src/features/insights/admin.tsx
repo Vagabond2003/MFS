@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, ChevronDown, CircleAlert, MapPinned, Rocket, Store, Users } from "lucide-react";
+import { Activity, Check, ChevronDown, CircleAlert, FlaskConical, MapPinned, Rocket, Store, Users, X } from "lucide-react";
+import { toast } from "sonner";
 import { ChartCard, ColumnChart } from "@/components/charts/charts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,9 +12,10 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { useApi } from "@/hooks/use-api";
 import { useI18n } from "@/hooks/use-i18n";
 import { msg, type Translate } from "@/lib/i18n/core";
-import { cn, formatCount, formatMoney } from "@/lib/utils";
+import { cn, formatCount, formatDate, formatMoney } from "@/lib/utils";
 import { api } from "@/services";
-import type { AgentFlag, AgentFlagCode, ChurnFactor, MerchantChurnRisk } from "@/types/domain";
+import { toApiError } from "@/services/errors";
+import type { AgentFlag, AgentFlagCode, ChurnFactor, ChurnModelInfo, FlagReview, FlagReviewInput, MerchantChurnRisk } from "@/types/domain";
 import { CATEGORY_META } from "../register/merchant-form";
 import { AiTextBlock } from "./ai-note";
 import { useInsightLang } from "./agent";
@@ -61,7 +63,119 @@ function factorText(f: ChurnFactor, t: Translate) {
       return t("{pct}% of payments failed", { pct });
     case "REFUND_RATE":
       return t("{pct}% refunded", { pct });
+    case "TENURE":
+      return t("New merchant: {n} days on Kosh", { n: f.value });
+    case "TREND":
+      return t("Payments falling {pct}% a week", { pct: Math.abs(pct) });
+    case "CONCENTRATION":
+      return t("{pct}% of payments from one customer", { pct });
+    case "REPEAT_SHARE":
+      return t("Only {pct}% of payments from repeat customers", { pct });
+    case "ACTIVITY":
+      return t("Paid on {n} of the last 28 days", { n: Math.round(f.value * 28) });
   }
+}
+
+/* ───────────── Flag reviews ───────────── */
+
+function ReviewControl({ review, enabled, input, onSaved }: { review: FlagReview | null | undefined; enabled: boolean; input: Omit<FlagReviewInput, "decision">; onSaved: () => void }) {
+  const { t, lang } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [changing, setChanging] = useState(false);
+  const decide = async (decision: FlagReviewInput["decision"]) => {
+    setBusy(true);
+    try {
+      await api.insights.reviewFlag({ ...input, decision });
+      toast.success(decision === "CONFIRMED" ? t("Flag confirmed") : t("Flag dismissed"));
+      setChanging(false);
+      onSaved();
+    } catch (e) {
+      toast.error(toApiError(e).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (review && !changing) {
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+        <Badge tone={review.decision === "CONFIRMED" ? "danger" : "neutral"}>{review.decision === "CONFIRMED" ? t("Confirmed") : t("Dismissed")}</Badge>
+        {t("by {name} on {date}", { name: review.reviewerName, date: formatDate(review.at, lang) })}
+        {enabled && (
+          <button type="button" className="font-medium text-accent-700 hover:underline" onClick={() => setChanging(true)}>
+            {t("Change")}
+          </button>
+        )}
+      </span>
+    );
+  }
+  if (!enabled) return <span className="text-xs text-slate-400">{t("Reviews need a database update")}</span>;
+  return (
+    <span className="inline-flex gap-1">
+      <Button size="sm" variant="outline" loading={busy} onClick={() => void decide("CONFIRMED")} aria-label={t("Confirm flag")}>
+        <Check className="h-3.5 w-3.5" aria-hidden /> {t("Confirm")}
+      </Button>
+      <Button size="sm" variant="ghost" disabled={busy} onClick={() => void decide("DISMISSED")} aria-label={t("Dismiss flag")}>
+        <X className="h-3.5 w-3.5" aria-hidden /> {t("Dismiss")}
+      </Button>
+    </span>
+  );
+}
+
+/* ───────────── Churn model ───────────── */
+
+function ModelCard({ model }: { model: ChurnModelInfo }) {
+  const { t, lang } = useI18n();
+  const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+  const rows: [string, (m: ChurnModelInfo["test"]) => string][] = [
+    [t("ROC-AUC"), (m) => m.rocAuc.toFixed(3)],
+    [t("PR-AUC"), (m) => m.prAuc.toFixed(3)],
+    [t("Precision, top 10%"), (m) => pct(m.precisionTop10)],
+    [t("Recall, top 10%"), (m) => pct(m.recallTop10)],
+  ];
+  return (
+    <div className="rounded-xl border border-slate-200 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+            <FlaskConical className="h-4 w-4 text-accent-600" aria-hidden /> {t(model.name)}
+          </h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {t("Trained {date} · version {version}", { date: formatDate(`${model.trainedAt}T00:00:00Z`, lang), version: model.version })}
+          </p>
+        </div>
+        {model.syntheticData && <Badge tone="warning">{t("Metrics on synthetic data")}</Badge>}
+      </div>
+      <p className="mt-2 text-xs text-slate-600">
+        {t("Score = chance of no successful payment in the next 30 days. High from {high}%, medium from {medium}%. Merchants with under {days} days on Kosh or fewer than {n} payments in 60 days get the rule score instead.", {
+          high: Math.round(model.thresholds.high * 100),
+          medium: Math.round(model.thresholds.medium * 100),
+          days: model.minHistory.tenureDays,
+          n: model.minHistory.payments60,
+        })}
+      </p>
+      <div className="-mx-2 mt-3 overflow-x-auto sm:-mx-3">
+        <Table>
+          <THead>
+            <TH>{t("Held-out test set")}</TH>
+            <TH align="right">{t("Model")}</TH>
+            <TH align="right">{t("Rule score")}</TH>
+          </THead>
+          <tbody>
+            {rows.map(([label, f]) => (
+              <TR key={label}>
+                <TD>{label}</TD>
+                <TD align="right" className="tabular font-semibold text-slate-900">{f(model.test)}</TD>
+                <TD align="right" className="tabular">{f(model.baseline)}</TD>
+              </TR>
+            ))}
+          </tbody>
+        </Table>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">
+        {t("{rows} merchant snapshots, {positives} churned, none seen in training. Details: docs/model-card.md and docs/evaluation.md.", { rows: formatCount(model.test.rows), positives: model.test.positives })}
+      </p>
+    </div>
+  );
 }
 
 function ChurnSection() {
@@ -74,7 +188,7 @@ function ChurnSection() {
   const shown: MerchantChurnRisk[] = c ? (showAll ? c.merchants : c.merchants.slice(0, Math.max(10, atRisk.length))) : [];
 
   return (
-    <SectionCard icon={<Store className="h-4 w-4" />} title={t("Merchant churn risk")} description={t("Merchants likely to stop using Kosh, scored 0–100 from recent payment activity.")}>
+    <SectionCard icon={<Store className="h-4 w-4" />} title={t("Merchant churn risk")} description={t("Merchants likely to stop using Kosh in the next 30 days, from a model trained on payment history.")}>
       {q.error && !c ? (
         <ErrorState message={q.error.message} onRetry={q.reload} />
       ) : !c ? (
@@ -83,6 +197,7 @@ function ChurnSection() {
         <EmptyState icon={<Store className="h-6 w-6" />} title={t("No merchants to score yet")} />
       ) : (
         <>
+          <ModelCard model={c.model} />
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
             <AiTextBlock note={c.ai} />
             <div className="flex gap-2">
@@ -99,6 +214,7 @@ function ChurnSection() {
                 <TH>{t("Risk")}</TH>
                 <TH>{t("Why")}</TH>
                 <TH align="right">{t("Payments (14 days)")}</TH>
+                <TH>{t("Review")}</TH>
               </THead>
               <tbody>
                 {shown.map((m) => (
@@ -115,9 +231,10 @@ function ChurnSection() {
                         <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
                           <div className={cn("h-full rounded-full", m.level === "HIGH" ? "bg-rose-500" : m.level === "MEDIUM" ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${m.score}%` }} />
                         </div>
-                        <span className="tabular w-7 text-sm font-semibold text-slate-900">{m.score}</span>
+                        <span className="tabular w-9 text-sm font-semibold text-slate-900">{m.method === "MODEL" ? `${m.score}%` : m.score}</span>
                         <Badge tone={LEVEL_TONE[m.level]}>{t(LEVEL_LABEL[m.level])}</Badge>
                       </div>
+                      {m.method === "RULES" && <p className="mt-1 text-[11px] text-slate-400">{t("Rule score (short history)")}</p>}
                     </TD>
                     <TD>
                       <ul className="flex flex-wrap gap-1">
@@ -133,6 +250,9 @@ function ChurnSection() {
                     </TD>
                     <TD align="right" className="tabular whitespace-nowrap">
                       {m.count14} <span className="text-xs text-slate-400">{t("vs {n}", { n: m.prevCount14 })}</span>
+                    </TD>
+                    <TD>
+                      {m.level !== "LOW" && <ReviewControl review={m.review} enabled={c.reviewsEnabled} input={{ kind: "CHURN", subjectUserId: m.userId, code: "CHURN" }} onSaved={q.reload} />}
                     </TD>
                   </TR>
                 ))}
@@ -209,11 +329,14 @@ function AgentsSection() {
                       </p>
                       <ul className="mt-2 space-y-1.5">
                         {x.flags.map((f) => (
-                          <li key={f.code} className="text-xs text-slate-600">
-                            <Badge tone={f.severity === "HIGH" ? "danger" : "warning"} className="mr-1.5">
-                              {t(FLAG_LABEL[f.code])}
-                            </Badge>
-                            {flagDetail(f, t)}
+                          <li key={f.code} className={cn("space-y-1 text-xs text-slate-600", f.review?.decision === "DISMISSED" && "opacity-60")}>
+                            <p>
+                              <Badge tone={f.severity === "HIGH" ? "danger" : "warning"} className="mr-1.5">
+                                {t(FLAG_LABEL[f.code])}
+                              </Badge>
+                              {flagDetail(f, t)}
+                            </p>
+                            <ReviewControl review={f.review} enabled={a.reviewsEnabled} input={{ kind: "AGENT_FLAG", subjectUserId: x.userId, code: f.code }} onSaved={q.reload} />
                           </li>
                         ))}
                       </ul>

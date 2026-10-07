@@ -1,8 +1,8 @@
 /**
  * Setup for scripts that run the app's code outside the test runner
- * (scripts/check-ai.mjs --live):
- *   - lets Node import the app's TypeScript directly (type stripping), with a
- *     small resolve hook that maps "@/" and extensionless imports the way the
+ * (check-ai.mjs, churn-dataset.mjs, fairness.mjs):
+ *   - lets Node import the app's TypeScript directly (type stripping), with
+ *     small hooks that map "@/", extensionless and JSON imports the way the
  *     Next.js bundler does;
  *   - builds an in-memory DbState from the synthetic dataset.
  * The tests (npm test) don't use this file; Vitest resolves the imports itself.
@@ -30,6 +30,11 @@ register(
           }
           throw error;
         }
+      }
+      // The app imports JSON the bundler way (no import attribute); Node needs one.
+      export async function load(url, context, next) {
+        if (url.endsWith(".json")) return next(url, { ...context, importAttributes: { ...context.importAttributes, type: "json" } });
+        return next(url, context);
       }`),
 );
 
